@@ -4,7 +4,8 @@ import {
   getPatients, addPatient, updatePatientStatus,
   getOPDVisits, addOPDVisit,
   getPearls, addPearl,
-  calcAge, formatDate,
+  getAllTrackingItems,
+  calcAge, calcHD, formatDate,
 } from '../lib/api';
 
 const PRESET_HOSPITALS = ['TMU', 'WFH', 'SHH', 'Others'];
@@ -14,6 +15,7 @@ const GENDERS = ['M', 'F'];
 export default function Home() {
   const [tab, setTab] = useState('ward');
   const [patients, setPatients] = useState([]);
+  const [trackingMap, setTrackingMap] = useState({});
   const [opdVisits, setOpdVisits] = useState([]);
   const [pearls, setPearls] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -28,7 +30,7 @@ export default function Home() {
   const [pForm, setPForm] = useState({
     name: '', chart_number: '', birth_date: '', gender: 'M',
     bed: '', hospital: 'TMU', department: 'General Surgery',
-    chief_complaint: '', diagnosis: '', admission_date: '',
+    chief_complaint: '', diagnosis: '', admission_date: '', discharge_date: '',
   });
   const [customHospital, setCustomHospital] = useState('');
   const [customDept, setCustomDept] = useState('');
@@ -47,10 +49,21 @@ export default function Home() {
 
   async function loadAll() {
     setLoading(true);
-    const [p, o, pl] = await Promise.all([getPatients(), getOPDVisits(), getPearls()]);
+    const [p, o, pl, ti] = await Promise.all([
+      getPatients(), getOPDVisits(), getPearls(), getAllTrackingItems()
+    ]);
     setPatients(Array.isArray(p) ? p : []);
     setOpdVisits(Array.isArray(o) ? o : []);
     setPearls(Array.isArray(pl) ? pl : []);
+    // Build map: patient_id -> [items]
+    const map = {};
+    if (Array.isArray(ti)) {
+      ti.forEach(item => {
+        if (!map[item.patient_id]) map[item.patient_id] = [];
+        map[item.patient_id].push(item);
+      });
+    }
+    setTrackingMap(map);
     setLoading(false);
   }
 
@@ -73,9 +86,8 @@ export default function Home() {
     await loadAll();
     setSaving(false);
     setModal(null);
-    setPForm({ name: '', chart_number: '', birth_date: '', gender: 'M', bed: '', hospital: 'TMU', department: 'General Surgery', chief_complaint: '', diagnosis: '', admission_date: '' });
-    setCustomHospital('');
-    setCustomDept('');
+    setPForm({ name: '', chart_number: '', birth_date: '', gender: 'M', bed: '', hospital: 'TMU', department: 'General Surgery', chief_complaint: '', diagnosis: '', admission_date: '', discharge_date: '' });
+    setCustomHospital(''); setCustomDept('');
   }
 
   async function handleAddOPD() {
@@ -166,17 +178,19 @@ export default function Home() {
 
           <div style={{ padding: '12px 16px 80px' }}>
             {loading ? <div className="loading">Loading...</div>
-              : filteredPatients.length === 0 ? <div className="empty">No patients here · tap + to add</div>
+              : filteredPatients.length === 0 ? <div className="empty">No patients · tap + to add</div>
                 : (
                   <div style={{
                     display: 'flex', gap: 12,
-                    overflowX: 'auto', paddingBottom: 8,
-                    scrollSnapType: 'x mandatory',
-                    WebkitOverflowScrolling: 'touch',
                     flexWrap: 'wrap',
                   }}>
                     {filteredPatients.map(p => (
-                      <PatientCard key={p.patient_id} patient={p} onStatusChange={handleStatus} />
+                      <PatientCard
+                        key={p.patient_id}
+                        patient={p}
+                        trackingItems={trackingMap[p.patient_id] || []}
+                        onStatusChange={handleStatus}
+                      />
                     ))}
                   </div>
                 )}
@@ -288,9 +302,15 @@ export default function Home() {
               <label className="form-label">Diagnosis *</label>
               <input value={pForm.diagnosis} onChange={e => setPForm({ ...pForm, diagnosis: e.target.value })} placeholder="Primary diagnosis" />
             </div>
-            <div className="form-group">
-              <label className="form-label">Admission date</label>
-              <input type="date" value={pForm.admission_date} onChange={e => setPForm({ ...pForm, admission_date: e.target.value })} />
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">Admission date</label>
+                <input type="date" value={pForm.admission_date} onChange={e => setPForm({ ...pForm, admission_date: e.target.value })} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Discharge date</label>
+                <input type="date" value={pForm.discharge_date} onChange={e => setPForm({ ...pForm, discharge_date: e.target.value })} />
+              </div>
             </div>
             <button className="btn-primary" onClick={handleAddPatient} disabled={saving}>{saving ? 'Saving...' : 'Add Patient'}</button>
             <button className="btn-secondary" onClick={() => setModal(null)}>Cancel</button>
@@ -350,7 +370,7 @@ export default function Home() {
             <div className="modal-title">💡 Capture a Pearl</div>
             <div className="form-group">
               <label className="form-label">Source</label>
-              <input value={plForm.source} onChange={e => setPlForm({ ...plForm, source: e.target.value })} placeholder="e.g. 主任查房, Trauma teaching" />
+              <input value={plForm.source} onChange={e => setPlForm({ ...plForm, source: e.target.value })} placeholder="e.g. 主任查房" />
             </div>
             <div className="form-group">
               <label className="form-label">Department</label>
@@ -369,28 +389,34 @@ export default function Home() {
       )}
 
       <style>{`
-        .patient-card-square {
-          flex-shrink: 0;
+        .pcard {
           width: 160px;
-          height: 160px;
+          height: 200px;
           border-radius: 16px;
-          background: linear-gradient(135deg, #1a56db 0%, #1e40af 100%);
-          color: white;
-          padding: 14px;
+          padding: 13px;
           display: flex;
           flex-direction: column;
           justify-content: space-between;
-          cursor: pointer;
           text-decoration: none;
           transition: transform 0.15s;
+          background: linear-gradient(145deg, #1e4ed8 0%, #1e3a8a 100%);
         }
-        .patient-card-square:active { transform: scale(0.97); }
-        .patient-card-square.starred { background: linear-gradient(135deg, #d97706 0%, #92400e 100%); }
-        .patient-card-square.archived { background: linear-gradient(135deg, #6b7280 0%, #374151 100%); }
-        .pcsq-name { font-size: 15px; font-weight: 700; color: white; }
-        .pcsq-bed { font-size: 11px; color: rgba(255,255,255,0.7); margin-top: 2px; }
-        .pcsq-cc { font-size: 11px; color: rgba(255,255,255,0.85); margin-top: 6px; line-height: 1.4; }
-        .pcsq-dx { font-size: 10px; color: rgba(255,255,255,0.65); }
+        .pcard:active { transform: scale(0.97); }
+        .pcard.starred { background: linear-gradient(145deg, #d97706 0%, #92400e 100%); }
+        .pcard.archived { background: linear-gradient(145deg, #6b7280 0%, #374151 100%); }
+        .pcard-top { display: flex; justify-content: space-between; align-items: flex-start; }
+        .pcard-hd { font-size: 11px; color: rgba(255,255,255,0.7); font-weight: 600; white-space: nowrap; }
+        .pcard-name { font-size: 15px; font-weight: 700; color: white; line-height: 1.2; }
+        .pcard-bed { font-size: 11px; color: rgba(255,255,255,0.65); margin-top: 2px; }
+        .pcard-follow { margin-top: 6px; }
+        .pcard-follow-item {
+          font-size: 10px; color: rgba(255,255,255,0.9);
+          background: rgba(255,255,255,0.15);
+          border-radius: 6px; padding: 3px 6px;
+          margin-bottom: 3px; line-height: 1.3;
+          white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .pcard-dx { font-size: 11px; color: rgba(255,255,255,0.8); font-style: italic; }
         .card-actions { display: flex; gap: 5px; margin-top: 6px; flex-wrap: wrap; }
         .card-action { font-size: 11px; padding: 3px 8px; border-radius: 20px; border: 1px solid var(--border); background: var(--surface); color: var(--text-secondary); cursor: pointer; }
         .card-action.danger { color: var(--red); border-color: #fecaca; }
@@ -401,20 +427,38 @@ export default function Home() {
   );
 }
 
-function PatientCard({ patient: p, onStatusChange }) {
+function PatientCard({ patient: p, trackingItems, onStatusChange }) {
   const age = calcAge(p.birth_date);
-  const cls = `patient-card-square${p.status === 'starred' ? ' starred' : p.status === 'archived' ? ' archived' : ''}`;
+  const hd = calcHD(p.admission_date);
+  const cls = `pcard${p.status === 'starred' ? ' starred' : p.status === 'archived' ? ' archived' : ''}`;
+  const showItems = trackingItems.slice(0, 2);
 
   return (
-    <div style={{ flexShrink: 0 }}>
-      <Link href={`/patient/${p.patient_id}`} style={{ textDecoration: 'none' }}>
+    <div>
+      <Link href={`/patient/${p.patient_id}`} style={{ textDecoration: 'none', display: 'block' }}>
         <div className={cls}>
           <div>
-            <div className="pcsq-name">{p.name}</div>
-            <div className="pcsq-bed">{age !== '?' ? `${age}y ` : ''}{p.gender} · {p.bed || '—'}</div>
-            {p.chief_complaint && <div className="pcsq-cc">CC: {p.chief_complaint}</div>}
+            <div className="pcard-top">
+              <div>
+                <div className="pcard-name">{p.name}</div>
+                <div className="pcard-bed">{age !== '?' ? `${age}y ` : ''}{p.gender} · {p.bed || '—'}</div>
+              </div>
+              {hd !== null && (
+                <div className="pcard-hd">HD{hd}</div>
+              )}
+            </div>
+            {showItems.length > 0 && (
+              <div className="pcard-follow">
+                {showItems.map(item => (
+                  <div key={item.item_id} className="pcard-follow-item">⚑ {item.content}</div>
+                ))}
+                {trackingItems.length > 2 && (
+                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', paddingLeft: 2 }}>+{trackingItems.length - 2} more</div>
+                )}
+              </div>
+            )}
           </div>
-          <div className="pcsq-dx"># {p.diagnosis}</div>
+          <div className="pcard-dx"># {p.diagnosis}</div>
         </div>
       </Link>
       <div className="card-actions">
