@@ -71,7 +71,8 @@ export default function Home() {
   const allHospitals = [...new Set([...PRESET_HOSPITALS, ...patients.map(p => p.hospital).filter(Boolean)])];
 
   const filteredPatients = patients.filter(p => {
-    if (statusFilter !== 'all' && p.status !== statusFilter) return false;
+    if (p.status === "deleted") return false;
+    if (statusFilter !== "all" && p.status !== statusFilter) return false;
     if (deptFilter && p.department !== deptFilter) return false;
     if (hospitalFilter && p.hospital !== hospitalFilter) return false;
     return true;
@@ -405,8 +406,8 @@ export default function Home() {
         .pcard.starred { background: linear-gradient(145deg, #d97706 0%, #92400e 100%); }
         .pcard.archived { background: linear-gradient(145deg, #6b7280 0%, #374151 100%); }
         .pcard-top { display: flex; justify-content: space-between; align-items: flex-start; }
-        .pcard-hd { font-size: 11px; color: rgba(255,255,255,0.7); font-weight: 600; white-space: nowrap; }
-        .pcard-name { font-size: 15px; font-weight: 700; color: white; line-height: 1.2; }
+        .pcard-hd { font-size: 13px; color: rgba(255,255,255,0.85); font-weight: 700; white-space: nowrap; }
+        .pcard-name { font-size: 18px; font-weight: 800; color: white; line-height: 1.2; }
         .pcard-bed { font-size: 11px; color: rgba(255,255,255,0.65); margin-top: 2px; }
         .pcard-follow { margin-top: 6px; }
         .pcard-follow-item {
