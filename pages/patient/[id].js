@@ -88,7 +88,7 @@ export default function PatientDetail() {
     await fetch(`${SUPABASE_URL}/rest/v1/patients?patient_id=eq.${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Prefer': 'return=representation' },
-      body: JSON.stringify({ status: 'archived', discharge_date: today() }),
+      body: JSON.stringify({ status: 'archived', discharge_date: (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })() }),
     });
     setDischarging(false);
     await load();

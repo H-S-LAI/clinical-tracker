@@ -10,6 +10,11 @@ import {
   calcAge, calcHD, formatDate,
 } from '../lib/api';
 
+function localToday() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
 const PRESET_HOSPITALS = ['TMU', 'WFH', 'SHH', 'Others'];
 const PRESET_DEPARTMENTS = ['General Surgery', 'Internal Medicine', 'OB/GYN', 'Pediatrics', 'Emergency'];
 const GENDERS = ['M', 'F'];
@@ -42,13 +47,13 @@ export default function Home() {
   const [pForm, setPForm] = useState({
     name: '', chart_number: '', birth_date: '', gender: 'M',
     bed: '', hospital: 'TMU', department: 'General Surgery',
-    chief_complaint: '', diagnosis: '', admission_date: new Date().toISOString().slice(0, 10), discharge_date: '',
+    chief_complaint: '', diagnosis: '', admission_date: new Date().toFullYear !== undefined ? `${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,'0')}-${String(new Date().getDate()).padStart(2,'0')}` : '', discharge_date: '',
   });
   const [customHospital, setCustomHospital] = useState('');
   const [customDept, setCustomDept] = useState('');
 
   const [oForm, setOForm] = useState({
-    date: new Date().toISOString().slice(0, 10),
+    date: localToday(),
     hospital: 'TMU', department: 'Emergency',
     chief_complaint: '', diagnosis: '', impression: '', learning_point: '',
   });
