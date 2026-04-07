@@ -3,7 +3,7 @@ import Link from 'next/link';
 import {
   getPatients, addPatient, updatePatientStatus,
   getOPDVisits, addOPDVisit,
-  getPearls, addPearl,
+  getPearls, addPearl, updatePearl, deletePearl, uploadPearlImage,
   getAllTrackingItems,
   calcAge, calcHD, formatDate,
 } from '../lib/api';
@@ -28,6 +28,8 @@ export default function Home() {
   const [showFilters, setShowFilters] = useState(false);
   const [pearlDeptFilter, setPearlDeptFilter] = useState('');
   const [expandedPearl, setExpandedPearl] = useState(null);
+  const [editingPearl, setEditingPearl] = useState(null);
+  const [imageUploading, setImageUploading] = useState(false);
 
   const [pForm, setPForm] = useState({
     name: '', chart_number: '', birth_date: '', gender: 'M',
@@ -110,6 +112,39 @@ export default function Home() {
     setSaving(false);
     setModal(null);
     setPlForm({ title: '', source: '', department: 'General Surgery', content: '' });
+  }
+
+  async function handleStarPearl(pearl_id, starred) {
+    await updatePearl(pearl_id, { starred: !starred });
+    await loadAll();
+  }
+
+  async function handleDeletePearl(pearl_id) {
+    if (!confirm('Delete this pearl?')) return;
+    await deletePearl(pearl_id);
+    await loadAll();
+  }
+
+  async function handleUpdatePearl() {
+    if (!editingPearl) return;
+    setSaving(true);
+    await updatePearl(editingPearl.pearl_id, {
+      title: editingPearl.title,
+      source: editingPearl.source,
+      department: editingPearl.department,
+      content: editingPearl.content,
+    });
+    await loadAll();
+    setSaving(false);
+    setEditingPearl(null);
+  }
+
+  async function handlePearlImageUpload(pearl_id, file) {
+    setImageUploading(true);
+    const url = await uploadPearlImage(file);
+    if (url) await updatePearl(pearl_id, { image_url: url });
+    await loadAll();
+    setImageUploading(false);
   }
 
   async function handleStatus(patient_id, status) {
@@ -223,14 +258,14 @@ export default function Home() {
 
       {tab === 'pearls' && (
         <div className="section">
-          <div style={{ padding: '10px 16px 0', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            {PRESET_DEPARTMENTS.map(d => (
-              <button key={d} onClick={() => setPearlDeptFilter(pearlDeptFilter === d ? '' : d)} style={{
-                padding: '4px 10px', borderRadius: 20, fontSize: 12,
+          <div style={{ padding: '10px 16px 0', display: 'flex', gap: 6, overflowX: 'auto' }}>
+            {['All', ...PRESET_DEPARTMENTS].map(d => (
+              <button key={d} onClick={() => setPearlDeptFilter(d === 'All' ? '' : d)} style={{
+                padding: '5px 12px', borderRadius: 20, fontSize: 12, fontWeight: 500,
                 border: '1px solid var(--border)',
-                background: pearlDeptFilter === d ? 'var(--text)' : 'var(--surface)',
-                color: pearlDeptFilter === d ? 'white' : 'var(--text-secondary)',
-                cursor: 'pointer', whiteSpace: 'nowrap',
+                background: (d === 'All' && !pearlDeptFilter) || pearlDeptFilter === d ? 'var(--text)' : 'var(--surface)',
+                color: (d === 'All' && !pearlDeptFilter) || pearlDeptFilter === d ? 'white' : 'var(--text-secondary)',
+                cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
               }}>{d}</button>
             ))}
           </div>
@@ -244,18 +279,38 @@ export default function Home() {
                     const isExpanded = expandedPearl === pl.pearl_id;
                     const displayTitle = pl.title || pl.content.split('\n')[0].slice(0, 60);
                     return (
-                      <div key={pl.pearl_id} className="card" onClick={() => setExpandedPearl(isExpanded ? null : pl.pearl_id)} style={{ cursor: 'pointer' }}>
-                        <div className="pearl-card">
+                      <div key={pl.pearl_id} className="card">
+                        <div className="pearl-card" onClick={() => setExpandedPearl(isExpanded ? null : pl.pearl_id)} style={{ cursor: 'pointer' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                            <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{pl.source && `${pl.source} · `}{pl.department} · {formatDate(pl.created_at)}</div>
-                            <span style={{ fontSize: 12, color: 'var(--text-tertiary)', marginLeft: 8 }}>{isExpanded ? '▲' : '▼'}</span>
+                            <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
+                              {pl.starred && <span style={{ color: '#d97706', marginRight: 4 }}>⭐</span>}
+                              {pl.source && `${pl.source} · `}{pl.department} · {formatDate(pl.created_at)}
+                            </div>
+                            <span style={{ fontSize: 11, color: 'var(--text-tertiary)', marginLeft: 8 }}>{isExpanded ? '▲' : '▼'}</span>
                           </div>
                           <div style={{ fontWeight: 500, fontSize: 14, color: 'var(--text)', marginTop: 4 }}>{displayTitle}</div>
                           {isExpanded && (
-                            <div style={{ marginTop: 10, fontSize: 13, color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', lineHeight: 1.6, borderTop: '1px solid var(--border)', paddingTop: 10 }}>
-                              {pl.content}
-                            </div>
+                            <>
+                              <div style={{ marginTop: 10, fontSize: 13, color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', lineHeight: 1.6, borderTop: '1px solid var(--border)', paddingTop: 10 }}>
+                                {pl.content}
+                              </div>
+                              {pl.image_url && (
+                                <img src={pl.image_url} alt="pearl" style={{ marginTop: 10, maxWidth: '100%', borderRadius: 8 }} />
+                              )}
+                            </>
                           )}
+                        </div>
+                        <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+                          <button className="card-action" onClick={() => handleStarPearl(pl.pearl_id, pl.starred)}>
+                            {pl.starred ? '✕ Unstar' : '⭐'}
+                          </button>
+                          <button className="card-action" onClick={() => setEditingPearl({...pl})}>Edit</button>
+                          <label className="card-action" style={{ cursor: 'pointer' }}>
+                            {imageUploading ? 'Uploading...' : '🖼 Image'}
+                            <input type="file" accept="image/*" style={{ display: 'none' }}
+                              onChange={e => e.target.files[0] && handlePearlImageUpload(pl.pearl_id, e.target.files[0])} />
+                          </label>
+                          <button className="card-action danger" onClick={() => handleDeletePearl(pl.pearl_id)}>Delete</button>
                         </div>
                       </div>
                     );
@@ -419,6 +474,37 @@ export default function Home() {
             </div>
             <button className="btn-primary" onClick={handleAddPearl} disabled={saving}>{saving ? 'Saving...' : 'Save Pearl'}</button>
             <button className="btn-secondary" onClick={() => setModal(null)}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {editingPearl && (
+        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setEditingPearl(null)}>
+          <div className="modal">
+            <div className="modal-handle" />
+            <div className="modal-title">Edit Pearl</div>
+            <div className="form-group">
+              <label className="form-label">Title</label>
+              <input value={editingPearl.title || ''} onChange={e => setEditingPearl({...editingPearl, title: e.target.value})} placeholder="Title" />
+            </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">Source</label>
+                <input value={editingPearl.source || ''} onChange={e => setEditingPearl({...editingPearl, source: e.target.value})} placeholder="Source" />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Department</label>
+                <select value={editingPearl.department || ''} onChange={e => setEditingPearl({...editingPearl, department: e.target.value})}>
+                  {PRESET_DEPARTMENTS.map(d => <option key={d}>{d}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Content</label>
+              <textarea value={editingPearl.content || ''} onChange={e => setEditingPearl({...editingPearl, content: e.target.value})} rows={8} style={{ fontFamily: 'monospace', fontSize: 13 }} />
+            </div>
+            <button className="btn-primary" onClick={handleUpdatePearl} disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
+            <button className="btn-secondary" onClick={() => setEditingPearl(null)}>Cancel</button>
           </div>
         </div>
       )}
