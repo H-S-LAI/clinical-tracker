@@ -37,6 +37,7 @@ export default function Home() {
   const [editorMode, setEditorMode] = useState('write');
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState(new Set());
+  const [activeMenu, setActiveMenu] = useState(null);
 
   const [pForm, setPForm] = useState({
     name: '', chart_number: '', birth_date: '', gender: 'M',
@@ -402,13 +403,22 @@ export default function Home() {
                   .map(pl => {
                     const isExpanded = expandedPearl === pl.pearl_id;
                     const displayTitle = pl.title || pl.content?.split('\n')[0].replace(/^#+\s*/, '').slice(0, 60);
+                    const showMenu = activeMenu === pl.pearl_id;
+                    let pressTimer = null;
                     return (
                       <div key={pl.pearl_id}>
                         <div className="card" style={{
                           padding: 0, overflow: 'hidden',
                           borderLeft: pl.starred ? '3px solid #d97706' : '3px solid transparent',
                           outline: selected.has(pl.pearl_id) ? '2px solid var(--blue)' : 'none',
-                        }}>
+                          userSelect: 'none',
+                        }}
+                          onMouseDown={() => { pressTimer = setTimeout(() => setActiveMenu(showMenu ? null : pl.pearl_id), 500); }}
+                          onMouseUp={() => clearTimeout(pressTimer)}
+                          onMouseLeave={() => clearTimeout(pressTimer)}
+                          onTouchStart={() => { pressTimer = setTimeout(() => setActiveMenu(showMenu ? null : pl.pearl_id), 500); }}
+                          onTouchEnd={() => clearTimeout(pressTimer)}
+                        >
                           <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
                             {selectMode && (
                               <input type="checkbox" checked={selected.has(pl.pearl_id)}
@@ -416,7 +426,7 @@ export default function Home() {
                                 style={{ width: 16, height: 16, flexShrink: 0, cursor: 'pointer' }} />
                             )}
                             <div style={{ flex: 1, minWidth: 0, cursor: 'pointer' }}
-                              onClick={() => selectMode ? toggleSelect(pl.pearl_id) : setEditingPearl({...pl})}>
+                              onClick={() => selectMode ? toggleSelect(pl.pearl_id) : (!showMenu && setEditingPearl({...pl}))}>
                               <div style={{ fontWeight: 500, fontSize: 14, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                 {displayTitle}
                               </div>
@@ -424,10 +434,22 @@ export default function Home() {
                                 {pl.department}{pl.source ? ` · ${pl.source}` : ''} · {formatDate(pl.created_at)}
                               </div>
                             </div>
-                            <button onClick={e => { e.stopPropagation(); setExpandedPearl(isExpanded ? null : pl.pearl_id); }}
+                            <button onClick={e => { e.stopPropagation(); setActiveMenu(null); setExpandedPearl(isExpanded ? null : pl.pearl_id); }}
                               style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 12, padding: '4px 6px', flexShrink: 0, transform: isExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }}>▶</button>
                           </div>
-                          {isExpanded && !selectMode && (
+                          {showMenu && (
+                            <div style={{ display: 'flex', gap: 8, padding: '0 14px 12px', borderTop: '1px solid var(--border)', paddingTop: 10 }}>
+                              <button onClick={() => { handleStarPearl(pl.pearl_id, pl.starred); setActiveMenu(null); }}
+                                style={{ flex: 1, padding: '7px', borderRadius: 8, border: '1px solid var(--border)', background: pl.starred ? '#fef3c7' : 'var(--surface)', color: pl.starred ? '#92400e' : 'var(--text-secondary)', cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>
+                                {pl.starred ? '★ Marked' : '☆ Mark'}
+                              </button>
+                              <button onClick={() => { handleDeletePearl(pl.pearl_id); setActiveMenu(null); }}
+                                style={{ flex: 1, padding: '7px', borderRadius: 8, border: 'none', background: '#fee2e2', color: '#b91c1c', cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>
+                                Delete
+                              </button>
+                            </div>
+                          )}
+                          {isExpanded && !showMenu && (
                             <div style={{ padding: '0 14px 14px', borderTop: '1px solid var(--border)' }}>
                               <div className="markdown-body" style={{ paddingTop: 12 }}>
                                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{pl.content || ''}</ReactMarkdown>
@@ -435,15 +457,6 @@ export default function Home() {
                             </div>
                           )}
                         </div>
-                        {!selectMode && (
-                          <div className="card-actions" style={{ padding: '6px 2px 2px' }}>
-                            <button className="card-action" style={{ color: pl.starred ? '#d97706' : 'var(--text-secondary)', borderColor: pl.starred ? '#d97706' : 'var(--border)', fontWeight: pl.starred ? 600 : 400 }}
-                              onClick={() => handleStarPearl(pl.pearl_id, pl.starred)}>
-                              {pl.starred ? '★ Marked' : '☆ Mark'}
-                            </button>
-                            <button className="card-action danger" onClick={() => handleDeletePearl(pl.pearl_id)}>Delete</button>
-                          </div>
-                        )}
                       </div>
                     );
                   })}
