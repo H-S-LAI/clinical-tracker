@@ -383,7 +383,172 @@ export default function Home() {
         </div>
       )}
 
-            {editingPearl && (
+      <button className="fab" onClick={() => {
+        if (tab === 'ward') setModal('patient');
+        else if (tab === 'opd') setModal('opd');
+        else setModal('pearl');
+      }}>+</button>
+
+      {modal === 'patient' && (
+        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setModal(null)}>
+          <div className="modal">
+            <div className="modal-handle" />
+            <div className="modal-title">New Patient</div>
+            <div className="form-group">
+              <label className="form-label">Name *</label>
+              <input value={pForm.name} onChange={e => setPForm({ ...pForm, name: e.target.value })} placeholder="Patient name" />
+            </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">Chart No.</label>
+                <input value={pForm.chart_number} onChange={e => setPForm({ ...pForm, chart_number: e.target.value })} placeholder="123456" />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Bed</label>
+                <input value={pForm.bed} onChange={e => setPForm({ ...pForm, bed: e.target.value })} placeholder="7B-12" />
+              </div>
+            </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">DOB</label>
+                <input type="date" value={pForm.birth_date} onChange={e => setPForm({ ...pForm, birth_date: e.target.value })} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Gender</label>
+                <select value={pForm.gender} onChange={e => setPForm({ ...pForm, gender: e.target.value })}>
+                  {GENDERS.map(g => <option key={g}>{g}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">Hospital</label>
+                <select value={pForm.hospital} onChange={e => setPForm({ ...pForm, hospital: e.target.value })}>
+                  {PRESET_HOSPITALS.map(h => <option key={h}>{h}</option>)}
+                </select>
+                {pForm.hospital === 'Others' && (
+                  <input style={{ marginTop: 6 }} value={customHospital} onChange={e => setCustomHospital(e.target.value)} placeholder="Hospital name" />
+                )}
+              </div>
+              <div className="form-group">
+                <label className="form-label">Department</label>
+                <select value={pForm.department} onChange={e => setPForm({ ...pForm, department: e.target.value })}>
+                  {PRESET_DEPARTMENTS.map(d => <option key={d}>{d}</option>)}
+                  <option value="Others">Others</option>
+                </select>
+                {pForm.department === 'Others' && (
+                  <input style={{ marginTop: 6 }} value={customDept} onChange={e => setCustomDept(e.target.value)} placeholder="Department name" />
+                )}
+              </div>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Chief complaint</label>
+              <input value={pForm.chief_complaint} onChange={e => setPForm({ ...pForm, chief_complaint: e.target.value })} placeholder="e.g. Abdominal pain 3 days" />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Diagnosis *</label>
+              <input value={pForm.diagnosis} onChange={e => setPForm({ ...pForm, diagnosis: e.target.value })} placeholder="Primary diagnosis" />
+            </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">Admission date</label>
+                <input type="date" value={pForm.admission_date} onChange={e => setPForm({ ...pForm, admission_date: e.target.value })} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Discharge date</label>
+                <input type="date" value={pForm.discharge_date} onChange={e => setPForm({ ...pForm, discharge_date: e.target.value })} />
+              </div>
+            </div>
+            <button className="btn-primary" onClick={handleAddPatient} disabled={saving}>{saving ? 'Saving...' : 'Add Patient'}</button>
+            <button className="btn-secondary" onClick={() => setModal(null)}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {modal === 'opd' && (
+        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setModal(null)}>
+          <div className="modal">
+            <div className="modal-handle" />
+            <div className="modal-title">OPD Visit</div>
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">Date</label>
+                <input type="date" value={oForm.date} onChange={e => setOForm({ ...oForm, date: e.target.value })} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Hospital</label>
+                <select value={oForm.hospital} onChange={e => setOForm({ ...oForm, hospital: e.target.value })}>
+                  {PRESET_HOSPITALS.map(h => <option key={h}>{h}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Department</label>
+              <select value={oForm.department} onChange={e => setOForm({ ...oForm, department: e.target.value })}>
+                {PRESET_DEPARTMENTS.map(d => <option key={d}>{d}</option>)}
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Chief complaint</label>
+              <input value={oForm.chief_complaint} onChange={e => setOForm({ ...oForm, chief_complaint: e.target.value })} placeholder="e.g. Knee pain" />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Diagnosis *</label>
+              <input value={oForm.diagnosis} onChange={e => setOForm({ ...oForm, diagnosis: e.target.value })} placeholder="e.g. Osteoarthritis" />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Impression</label>
+              <textarea value={oForm.impression} onChange={e => setOForm({ ...oForm, impression: e.target.value })} placeholder="What stood out?" rows={3} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Learning point 💡</label>
+              <textarea value={oForm.learning_point} onChange={e => setOForm({ ...oForm, learning_point: e.target.value })} placeholder="What did you learn?" rows={3} />
+            </div>
+            <button className="btn-primary" onClick={handleAddOPD} disabled={saving}>{saving ? 'Saving...' : 'Save Visit'}</button>
+            <button className="btn-secondary" onClick={() => setModal(null)}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {modal === 'pearl' && (
+        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setModal(null)}>
+          <div className="modal">
+            <div className="modal-handle" />
+            <div className="modal-title">💡 Capture a Pearl</div>
+            <div className="form-group">
+              <label className="form-label">Title *</label>
+              <input value={plForm.title} onChange={e => setPlForm({ ...plForm, title: e.target.value })} placeholder="e.g. TUR Syndrome comparison" />
+            </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">Source</label>
+                <input value={plForm.source} onChange={e => setPlForm({ ...plForm, source: e.target.value })} placeholder="e.g. 主任查房" />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Department</label>
+                <select value={plForm.department} onChange={e => setPlForm({ ...plForm, department: e.target.value })}>
+                  {PRESET_DEPARTMENTS.map(d => <option key={d}>{d}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Content * {imageUploading && <span style={{color:'var(--text-tertiary)',fontSize:11}}>uploading...</span>}</label>
+              <textarea
+                value={plForm.content}
+                onChange={e => setPlForm({ ...plForm, content: e.target.value })}
+                onPaste={e => handlePasteImage(e, plForm.content, v => setPlForm({...plForm, content: v}))}
+                onDragOver={e => e.preventDefault()}
+                onDrop={e => handleDropImage(e, plForm.content, v => setPlForm({...plForm, content: v}))}
+                placeholder="Paste markdown or drag images here..."
+                rows={8} style={{ fontFamily: 'monospace', fontSize: 13 }} />
+            </div>
+            <button className="btn-primary" onClick={handleAddPearl} disabled={saving}>{saving ? 'Saving...' : 'Save Pearl'}</button>
+            <button className="btn-secondary" onClick={() => setModal(null)}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {editingPearl && (
         <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setEditingPearl(null)}>
           <div className="modal">
             <div className="modal-handle" />
