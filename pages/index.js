@@ -332,7 +332,8 @@ export default function Home() {
                   return (
                     <div key={v.visit_id} className="card" style={{ padding: 0, overflow: 'hidden', userSelect: 'none' }}
                       onContextMenu={e => openMenu(e, 'opd', v.visit_id, v)}
-                      onTouchStart={e => { let t = setTimeout(() => openMenu(e, 'opd', v.visit_id, v), 500); v._t = t; }}
+                      style={{ padding: 0, overflow: 'hidden', userSelect: 'none', WebkitTouchCallout: 'none' }}
+                      onTouchStart={e => { let t = setTimeout(() => openMenu(e, 'opd', v.visit_id, v), 600); v._t = t; }}
                       onTouchEnd={() => clearTimeout(v._t)}
                       onTouchMove={() => clearTimeout(v._t)}
                     >
@@ -427,7 +428,7 @@ export default function Home() {
                           userSelect: 'none',
                         }}
                           onContextMenu={e => openMenu(e, 'pearl', pl.pearl_id, pl)}
-                          onTouchStart={e => { pressTimer = setTimeout(() => openMenu(e, 'pearl', pl.pearl_id, pl), 500); }}
+                          onTouchStart={e => { pressTimer = setTimeout(() => openMenu(e, 'pearl', pl.pearl_id, pl), 600); }}
                           onTouchEnd={() => clearTimeout(pressTimer)}
                           onTouchMove={() => clearTimeout(pressTimer)}
                         >
@@ -807,6 +808,7 @@ export default function Home() {
           background: linear-gradient(145deg, #1e4ed8 0%, #1e3a8a 100%);
         }
         .pcard:active { transform: scale(0.97); }
+        .pcard, .card { -webkit-touch-callout: none; }
         .pcard.starred { background: linear-gradient(145deg, #d97706 0%, #92400e 100%); }
         .pcard.archived { background: linear-gradient(145deg, #6b7280 0%, #374151 100%); }
         .pcard-top { display: flex; justify-content: space-between; align-items: flex-start; }
@@ -859,10 +861,10 @@ function PatientCard({ patient: p, trackingItems, onStatusChange, onOpenMenu }) 
 
   return (
     <div>
-      <div style={{ textDecoration: 'none', display: 'block', userSelect: 'none' }}
+      <div style={{ textDecoration: 'none', display: 'block', userSelect: 'none', WebkitTouchCallout: 'none' }}
         onContextMenu={e => onOpenMenu(e, 'ward', p.patient_id, p)}
-        onTouchStart={e => { pressTimer = setTimeout(() => onOpenMenu(e, 'ward', p.patient_id, p), 500); }}
-        onTouchEnd={() => clearTimeout(pressTimer)}
+        onTouchStart={e => { pressTimer = setTimeout(() => { onOpenMenu(e, 'ward', p.patient_id, p); }, 600); }}
+        onTouchEnd={e => { clearTimeout(pressTimer); }}
         onTouchMove={() => clearTimeout(pressTimer)}
       >
         <Link href={`/patient/${p.patient_id}`} style={{ textDecoration: 'none', display: 'block' }}>
