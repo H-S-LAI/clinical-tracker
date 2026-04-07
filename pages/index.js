@@ -42,7 +42,7 @@ export default function Home() {
   const [pForm, setPForm] = useState({
     name: '', chart_number: '', birth_date: '', gender: 'M',
     bed: '', hospital: 'TMU', department: 'General Surgery',
-    chief_complaint: '', diagnosis: '', admission_date: '', discharge_date: '',
+    chief_complaint: '', diagnosis: '', admission_date: new Date().toISOString().slice(0, 10), discharge_date: '',
   });
   const [customHospital, setCustomHospital] = useState('');
   const [customDept, setCustomDept] = useState('');
@@ -897,4 +897,3 @@ function PatientCard({ patient: p, trackingItems, onStatusChange, onOpenMenu }) 
     </div>
   );
 }
-

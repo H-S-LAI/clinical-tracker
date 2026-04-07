@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import Link from 'next/link';
 import {
   getPatients, getTrackingItems, addTrackingItem, deleteTrackingItem,
-  getSOAP, addSOAP, calcAge, today, formatTime,
+  getSOAP, addSOAP, updatePatientStatus, calcAge, today, formatTime,
 } from '../../lib/api';
 
 export default function PatientDetail() {
@@ -25,6 +25,10 @@ export default function PatientDetail() {
   const [soapForm, setSoapForm] = useState({ subjective: '', objective: '', assessment: '', plan: '' });
   const [savingSoap, setSavingSoap] = useState(false);
   const [savingTracking, setSavingTracking] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
+  const [editForm, setEditForm] = useState(null);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [discharging, setDischarging] = useState(false);
 
   useEffect(() => {
     if (id) load();
@@ -76,6 +80,35 @@ export default function PatientDetail() {
     setViewDate(d.toISOString().slice(0, 10));
   }
 
+  async function handleDischarge() {
+    if (!confirm('Discharge this patient? This will archive them and set today as discharge date.')) return;
+    setDischarging(true);
+    const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_KEY;
+    await fetch(`${SUPABASE_URL}/rest/v1/patients?patient_id=eq.${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Prefer': 'return=representation' },
+      body: JSON.stringify({ status: 'archived', discharge_date: today() }),
+    });
+    setDischarging(false);
+    await load();
+  }
+
+  async function handleSaveEdit() {
+    if (!editForm) return;
+    setSavingEdit(true);
+    const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_KEY;
+    await fetch(`${SUPABASE_URL}/rest/v1/patients?patient_id=eq.${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Prefer': 'return=representation' },
+      body: JSON.stringify(editForm),
+    });
+    setSavingEdit(false);
+    setShowEdit(false);
+    await load();
+  }
+
   if (loading || !patient) {
     return (
       <div className="page">
@@ -117,9 +150,21 @@ export default function PatientDetail() {
               {patient.birth_date && ` · ${patient.birth_date}`}
             </div>
           </div>
-          <span className={`badge badge-${patient.status === 'starred' ? 'starred' : patient.status === 'archived' ? 'archived' : 'active'}`}>
-            {patient.status === 'starred' ? '⭐' : patient.status}
-          </span>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            {patient.status !== 'archived' && (
+              <button onClick={() => { setDischarging(false); handleDischarge(); }}
+                style={{ fontSize: 12, padding: '4px 10px', borderRadius: 20, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', cursor: 'pointer', fontWeight: 500 }}>
+                Discharge
+              </button>
+            )}
+            <button onClick={() => { setEditForm({ name: patient.name, bed: patient.bed, chart_number: patient.chart_number, department: patient.department, hospital: patient.hospital, chief_complaint: patient.chief_complaint, diagnosis: patient.diagnosis, birth_date: patient.birth_date, gender: patient.gender, admission_date: patient.admission_date, discharge_date: patient.discharge_date || '' }); setShowEdit(true); }}
+              style={{ fontSize: 12, padding: '4px 10px', borderRadius: 20, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', cursor: 'pointer', fontWeight: 500 }}>
+              Edit
+            </button>
+            <span className={`badge badge-${patient.status === 'starred' ? 'starred' : patient.status === 'archived' ? 'archived' : 'active'}`}>
+              {patient.status === 'starred' ? '★' : patient.status}
+            </span>
+          </div>
         </div>
 
         <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -286,6 +331,68 @@ export default function PatientDetail() {
           </div>
         ))}
       </div>
+
+      {/* Edit Modal */}
+      {showEdit && editForm && (
+        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setShowEdit(false)}>
+          <div className="modal">
+            <div className="modal-handle" />
+            <div className="modal-title">Edit Patient</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <div className="form-group" style={{ flex: 1 }}>
+                <label className="form-label">Name</label>
+                <input value={editForm.name || ''} onChange={e => setEditForm({...editForm, name: e.target.value})} />
+              </div>
+              <div className="form-group" style={{ flex: 1 }}>
+                <label className="form-label">Bed</label>
+                <input value={editForm.bed || ''} onChange={e => setEditForm({...editForm, bed: e.target.value})} />
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <div className="form-group" style={{ flex: 1 }}>
+                <label className="form-label">Gender</label>
+                <select value={editForm.gender || 'M'} onChange={e => setEditForm({...editForm, gender: e.target.value})}>
+                  <option>M</option><option>F</option>
+                </select>
+              </div>
+              <div className="form-group" style={{ flex: 1 }}>
+                <label className="form-label">DOB</label>
+                <input type="date" value={editForm.birth_date || ''} onChange={e => setEditForm({...editForm, birth_date: e.target.value})} />
+              </div>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Diagnosis</label>
+              <input value={editForm.diagnosis || ''} onChange={e => setEditForm({...editForm, diagnosis: e.target.value})} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Chief complaint</label>
+              <input value={editForm.chief_complaint || ''} onChange={e => setEditForm({...editForm, chief_complaint: e.target.value})} />
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <div className="form-group" style={{ flex: 1 }}>
+                <label className="form-label">Department</label>
+                <input value={editForm.department || ''} onChange={e => setEditForm({...editForm, department: e.target.value})} />
+              </div>
+              <div className="form-group" style={{ flex: 1 }}>
+                <label className="form-label">Hospital</label>
+                <input value={editForm.hospital || ''} onChange={e => setEditForm({...editForm, hospital: e.target.value})} />
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <div className="form-group" style={{ flex: 1 }}>
+                <label className="form-label">Admission</label>
+                <input type="date" value={editForm.admission_date || ''} onChange={e => setEditForm({...editForm, admission_date: e.target.value})} />
+              </div>
+              <div className="form-group" style={{ flex: 1 }}>
+                <label className="form-label">Discharge</label>
+                <input type="date" value={editForm.discharge_date || ''} onChange={e => setEditForm({...editForm, discharge_date: e.target.value})} />
+              </div>
+            </div>
+            <button className="btn-primary" onClick={handleSaveEdit} disabled={savingEdit}>{savingEdit ? 'Saving...' : 'Save'}</button>
+            <button className="btn-secondary" onClick={() => setShowEdit(false)}>Cancel</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
