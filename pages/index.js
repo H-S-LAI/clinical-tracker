@@ -37,7 +37,7 @@ export default function Home() {
   const [editorMode, setEditorMode] = useState('write');
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState(new Set());
-  const [activeMenu, setActiveMenu] = useState(null);
+  const [contextMenu, setContextMenu] = useState(null); // { id, x, y, starred }
 
   const [pForm, setPForm] = useState({
     name: '', chart_number: '', birth_date: '', gender: 'M',
@@ -198,6 +198,14 @@ export default function Home() {
     const url = await uploadPearlImage(file);
     if (url) onUpdate(currentContent + `\n![image](${url})\n`);
     setImageUploading(false);
+  }
+
+  function openMenu(e, pl) {
+    e.preventDefault();
+    e.stopPropagation();
+    const x = e.touches ? e.touches[0].clientX : e.clientX;
+    const y = e.touches ? e.touches[0].clientY : e.clientY;
+    setContextMenu({ id: pl.pearl_id, x, y, starred: pl.starred });
   }
 
   function toggleSelect(id) {
@@ -403,7 +411,6 @@ export default function Home() {
                   .map(pl => {
                     const isExpanded = expandedPearl === pl.pearl_id;
                     const displayTitle = pl.title || pl.content?.split('\n')[0].replace(/^#+\s*/, '').slice(0, 60);
-                    const showMenu = activeMenu === pl.pearl_id;
                     let pressTimer = null;
                     return (
                       <div key={pl.pearl_id}>
@@ -413,8 +420,8 @@ export default function Home() {
                           outline: selected.has(pl.pearl_id) ? '2px solid var(--blue)' : 'none',
                           userSelect: 'none',
                         }}
-                          onContextMenu={e => { e.preventDefault(); setActiveMenu(showMenu ? null : pl.pearl_id); }}
-                          onTouchStart={() => { pressTimer = setTimeout(() => setActiveMenu(showMenu ? null : pl.pearl_id), 500); }}
+                          onContextMenu={e => openMenu(e, pl)}
+                          onTouchStart={e => { pressTimer = setTimeout(() => openMenu(e, pl), 500); }}
                           onTouchEnd={() => clearTimeout(pressTimer)}
                           onTouchMove={() => clearTimeout(pressTimer)}
                         >
@@ -425,7 +432,7 @@ export default function Home() {
                                 style={{ width: 16, height: 16, flexShrink: 0, cursor: 'pointer' }} />
                             )}
                             <div style={{ flex: 1, minWidth: 0, cursor: 'pointer' }}
-                              onClick={() => selectMode ? toggleSelect(pl.pearl_id) : (!showMenu && setEditingPearl({...pl}))}>
+                              onClick={() => selectMode ? toggleSelect(pl.pearl_id) : setEditingPearl({...pl})}>
                               <div style={{ fontWeight: 500, fontSize: 14, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                 {displayTitle}
                               </div>
@@ -433,22 +440,10 @@ export default function Home() {
                                 {pl.department}{pl.source ? ` · ${pl.source}` : ''} · {formatDate(pl.created_at)}
                               </div>
                             </div>
-                            <button onClick={e => { e.stopPropagation(); setActiveMenu(null); setExpandedPearl(isExpanded ? null : pl.pearl_id); }}
+                            <button onClick={e => { e.stopPropagation(); setExpandedPearl(isExpanded ? null : pl.pearl_id); }}
                               style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 12, padding: '4px 6px', flexShrink: 0, transform: isExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }}>▶</button>
                           </div>
-                          {showMenu && (
-                            <div style={{ display: 'flex', gap: 8, padding: '0 14px 12px', borderTop: '1px solid var(--border)', paddingTop: 10 }}>
-                              <button onClick={() => { handleStarPearl(pl.pearl_id, pl.starred); setActiveMenu(null); }}
-                                style={{ flex: 1, padding: '7px', borderRadius: 8, border: '1px solid var(--border)', background: pl.starred ? '#fef3c7' : 'var(--surface)', color: pl.starred ? '#92400e' : 'var(--text-secondary)', cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>
-                                {pl.starred ? '★ Marked' : '☆ Mark'}
-                              </button>
-                              <button onClick={() => { handleDeletePearl(pl.pearl_id); setActiveMenu(null); }}
-                                style={{ flex: 1, padding: '7px', borderRadius: 8, border: 'none', background: '#fee2e2', color: '#b91c1c', cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>
-                                Delete
-                              </button>
-                            </div>
-                          )}
-                          {isExpanded && !showMenu && (
+                          {isExpanded && (
                             <div style={{ padding: '0 14px 14px', borderTop: '1px solid var(--border)' }}>
                               <div className="markdown-body" style={{ paddingTop: 12 }}>
                                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{pl.content || ''}</ReactMarkdown>
@@ -469,6 +464,43 @@ export default function Home() {
             </div>
           )}
         </div>
+      )}
+
+      {contextMenu && (
+        <>
+          <div onClick={() => setContextMenu(null)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
+          <div style={{
+            position: 'fixed',
+            left: Math.min(contextMenu.x, window.innerWidth - 180),
+            top: Math.min(contextMenu.y, window.innerHeight - 130),
+            zIndex: 999,
+            background: 'rgba(255,255,255,0.92)',
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
+            borderRadius: 14,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.18), 0 1px 3px rgba(0,0,0,0.1)',
+            minWidth: 170,
+            overflow: 'hidden',
+            animation: 'ctxIn 0.18s cubic-bezier(0.34,1.56,0.64,1)',
+            transformOrigin: 'top left',
+          }}>
+            <button onClick={() => { handleStarPearl(contextMenu.id, contextMenu.starred); setContextMenu(null); }}
+              style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '13px 16px', background: 'none', border: 'none', borderBottom: '1px solid rgba(0,0,0,0.06)', cursor: 'pointer', fontSize: 14, color: contextMenu.starred ? '#92400e' : '#1e293b', textAlign: 'left' }}>
+              <span style={{ fontSize: 16 }}>{contextMenu.starred ? '★' : '☆'}</span>
+              {contextMenu.starred ? 'Remove mark' : 'Mark'}
+            </button>
+            <button onClick={() => { setEditingPearl(pearls.find(p => p.pearl_id === contextMenu.id)); setContextMenu(null); }}
+              style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '13px 16px', background: 'none', border: 'none', borderBottom: '1px solid rgba(0,0,0,0.06)', cursor: 'pointer', fontSize: 14, color: '#1e293b', textAlign: 'left' }}>
+              <span style={{ fontSize: 16 }}>✎</span>
+              Edit
+            </button>
+            <button onClick={() => { handleDeletePearl(contextMenu.id); setContextMenu(null); }}
+              style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '13px 16px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: '#dc2626', textAlign: 'left' }}>
+              <span style={{ fontSize: 16 }}>⌫</span>
+              Delete
+            </button>
+          </div>
+        </>
       )}
 
       <button className="fab" onClick={() => {
@@ -755,6 +787,10 @@ export default function Home() {
         .card-action.danger { color: var(--red); border-color: #fecaca; }
         .card-action.amber { color: var(--amber); }
         .card-action.blue { color: var(--blue); }
+        @keyframes ctxIn {
+          from { opacity: 0; transform: scale(0.85); }
+          to   { opacity: 1; transform: scale(1); }
+        }
         .markdown-body { font-size: 13px; color: var(--text-secondary); line-height: 1.7; }
         .markdown-body h1, .markdown-body h2, .markdown-body h3 { color: var(--text); font-weight: 600; margin: 12px 0 6px; font-size: 14px; }
         .markdown-body h1 { font-size: 16px; }
