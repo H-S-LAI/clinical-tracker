@@ -34,6 +34,7 @@ export default function Home() {
   const [expandedPearl, setExpandedPearl] = useState(null);
   const [editingPearl, setEditingPearl] = useState(null);
   const [imageUploading, setImageUploading] = useState(false);
+  const [editorMode, setEditorMode] = useState('write');
 
   const [pForm, setPForm] = useState({
     name: '', chart_number: '', birth_date: '', gender: 'M',
@@ -149,6 +150,25 @@ export default function Home() {
     if (url) await updatePearl(pearl_id, { image_url: url });
     await loadAll();
     setImageUploading(false);
+  }
+
+
+  function insertFormat(value, setter, prefix, suffix = '') {
+    const ta = document.activeElement;
+    if (!ta || ta.tagName !== 'TEXTAREA') {
+      setter(value + prefix + suffix);
+      return;
+    }
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    const selected = value.slice(start, end);
+    const newVal = value.slice(0, start) + prefix + selected + suffix + value.slice(end);
+    setter(newVal);
+    setTimeout(() => {
+      ta.selectionStart = start + prefix.length;
+      ta.selectionEnd = start + prefix.length + selected.length;
+      ta.focus();
+    }, 0);
   }
 
   async function handlePasteImage(e, currentContent, onUpdate) {
@@ -532,15 +552,38 @@ export default function Home() {
               </div>
             </div>
             <div className="form-group">
-              <label className="form-label">Content * {imageUploading && <span style={{color:'var(--text-tertiary)',fontSize:11}}>uploading...</span>}</label>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                <label className="form-label" style={{ margin: 0 }}>Content * {imageUploading && <span style={{color:'var(--text-tertiary)',fontSize:11}}> uploading...</span>}</label>
+                <div style={{ display: 'flex', background: 'var(--surface)', borderRadius: 8, padding: 2, border: '1px solid var(--border)' }}>
+                  {['write','markdown'].map(m => (
+                    <button key={m} onClick={() => setEditorMode(m)} style={{
+                      padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 500,
+                      background: editorMode === m ? 'white' : 'transparent',
+                      color: editorMode === m ? 'var(--text)' : 'var(--text-tertiary)',
+                      border: 'none', cursor: 'pointer',
+                    }}>{m === 'write' ? '✏️ Write' : '{ } Markdown'}</button>
+                  ))}
+                </div>
+              </div>
+              {editorMode === 'write' && (
+                <div style={{ display: 'flex', gap: 4, marginBottom: 6, flexWrap: 'wrap' }}>
+                  {[['B','**','**'],['I','*','*'],['H2','## ',''],['H3','### ',''],['• ','- ',''],['—','---\n','']].map(([label,pre,suf]) => (
+                    <button key={label} onClick={() => insertFormat(plForm.content, v => setPlForm({...plForm, content: v}), pre, suf)}
+                      style={{ padding: '3px 8px', fontSize: 12, fontWeight: label==='B'?700:label==='I'?400:500, fontStyle: label==='I'?'italic':'normal',
+                        border: '1px solid var(--border)', borderRadius: 6, background: 'var(--surface)', color: 'var(--text)', cursor: 'pointer' }}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
               <textarea
                 value={plForm.content}
                 onChange={e => setPlForm({ ...plForm, content: e.target.value })}
                 onPaste={e => handlePasteImage(e, plForm.content, v => setPlForm({...plForm, content: v}))}
                 onDragOver={e => e.preventDefault()}
                 onDrop={e => handleDropImage(e, plForm.content, v => setPlForm({...plForm, content: v}))}
-                placeholder="Paste markdown or drag images here..."
-                rows={8} style={{ fontFamily: 'monospace', fontSize: 13 }} />
+                placeholder={editorMode === 'markdown' ? 'Paste markdown here...' : 'Write your pearl... use toolbar above for formatting'}
+                rows={8} style={{ fontFamily: editorMode === 'markdown' ? 'monospace' : 'inherit', fontSize: 13 }} />
             </div>
             <button className="btn-primary" onClick={handleAddPearl} disabled={saving}>{saving ? 'Saving...' : 'Save Pearl'}</button>
             <button className="btn-secondary" onClick={() => setModal(null)}>Cancel</button>
@@ -570,7 +613,30 @@ export default function Home() {
               </div>
             </div>
             <div className="form-group">
-              <label className="form-label">Content {imageUploading && <span style={{color:'var(--text-tertiary)',fontSize:11}}>uploading image...</span>}</label>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                <label className="form-label" style={{ margin: 0 }}>Content {imageUploading && <span style={{color:'var(--text-tertiary)',fontSize:11}}> uploading...</span>}</label>
+                <div style={{ display: 'flex', background: 'var(--surface)', borderRadius: 8, padding: 2, border: '1px solid var(--border)' }}>
+                  {['write','markdown'].map(m => (
+                    <button key={m} onClick={() => setEditorMode(m)} style={{
+                      padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 500,
+                      background: editorMode === m ? 'white' : 'transparent',
+                      color: editorMode === m ? 'var(--text)' : 'var(--text-tertiary)',
+                      border: 'none', cursor: 'pointer',
+                    }}>{m === 'write' ? '✏️ Write' : '{ } Markdown'}</button>
+                  ))}
+                </div>
+              </div>
+              {editorMode === 'write' && (
+                <div style={{ display: 'flex', gap: 4, marginBottom: 6, flexWrap: 'wrap' }}>
+                  {[['B','**','**'],['I','*','*'],['H2','## ',''],['H3','### ',''],['• ','- ',''],['—','---\n','']].map(([label,pre,suf]) => (
+                    <button key={label} onClick={() => insertFormat(editingPearl.content || '', v => setEditingPearl({...editingPearl, content: v}), pre, suf)}
+                      style={{ padding: '3px 8px', fontSize: 12, fontWeight: label==='B'?700:label==='I'?400:500, fontStyle: label==='I'?'italic':'normal',
+                        border: '1px solid var(--border)', borderRadius: 6, background: 'var(--surface)', color: 'var(--text)', cursor: 'pointer' }}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
               <textarea
                 value={editingPearl.content || ''}
                 onChange={e => setEditingPearl({...editingPearl, content: e.target.value})}
@@ -578,8 +644,8 @@ export default function Home() {
                 onDragOver={e => e.preventDefault()}
                 onDrop={e => handleDropImage(e, editingPearl.content || '', v => setEditingPearl({...editingPearl, content: v}))}
                 rows={10}
-                style={{ fontFamily: 'monospace', fontSize: 13 }}
-                placeholder="Paste markdown or drag images here..." />
+                style={{ fontFamily: editorMode === 'markdown' ? 'monospace' : 'inherit', fontSize: 13 }}
+                placeholder={editorMode === 'markdown' ? 'Paste markdown here...' : 'Write your pearl...'} />
             </div>
             <button className="btn-primary" onClick={handleUpdatePearl} disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
             <button className="btn-secondary" onClick={() => setEditingPearl(null)}>Cancel</button>
