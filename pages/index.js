@@ -26,6 +26,8 @@ export default function Home() {
   const [deptFilter, setDeptFilter] = useState('');
   const [hospitalFilter, setHospitalFilter] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+  const [pearlDeptFilter, setPearlDeptFilter] = useState('');
+  const [expandedPearl, setExpandedPearl] = useState(null);
 
   const [pForm, setPForm] = useState({
     name: '', chart_number: '', birth_date: '', gender: 'M',
@@ -42,7 +44,7 @@ export default function Home() {
   });
 
   const [plForm, setPlForm] = useState({
-    source: '', department: 'General Surgery', content: '',
+    title: '', source: '', department: 'General Surgery', content: '',
   });
 
   useEffect(() => { loadAll(); }, []);
@@ -107,7 +109,7 @@ export default function Home() {
     await loadAll();
     setSaving(false);
     setModal(null);
-    setPlForm({ source: '', department: 'General Surgery', content: '' });
+    setPlForm({ title: '', source: '', department: 'General Surgery', content: '' });
   }
 
   async function handleStatus(patient_id, status) {
@@ -221,19 +223,45 @@ export default function Home() {
 
       {tab === 'pearls' && (
         <div className="section">
+          <div style={{ padding: '10px 16px 0', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            {PRESET_DEPARTMENTS.map(d => (
+              <button key={d} onClick={() => setPearlDeptFilter(pearlDeptFilter === d ? '' : d)} style={{
+                padding: '4px 10px', borderRadius: 20, fontSize: 12,
+                border: '1px solid var(--border)',
+                background: pearlDeptFilter === d ? 'var(--text)' : 'var(--surface)',
+                color: pearlDeptFilter === d ? 'white' : 'var(--text-secondary)',
+                cursor: 'pointer', whiteSpace: 'nowrap',
+              }}>{d}</button>
+            ))}
+          </div>
+          <div style={{ padding: '10px 16px 80px' }}>
           {loading ? <div className="loading">Loading...</div>
             : pearls.length === 0 ? <div className="empty">Pearl collection is empty</div>
               : <div className="list-gap">
-                {pearls.map(pl => (
-                  <div key={pl.pearl_id} className="card">
-                    <div className="pearl-card">
-                      <div className="pearl-source">{pl.source && `${pl.source} · `}{pl.department}</div>
-                      <div className="pearl-content">{pl.content}</div>
-                      <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 6 }}>{formatDate(pl.created_at)}</div>
-                    </div>
-                  </div>
-                ))}
+                {pearls
+                  .filter(pl => !pearlDeptFilter || pl.department === pearlDeptFilter)
+                  .map(pl => {
+                    const isExpanded = expandedPearl === pl.pearl_id;
+                    const displayTitle = pl.title || pl.content.split('\n')[0].slice(0, 60);
+                    return (
+                      <div key={pl.pearl_id} className="card" onClick={() => setExpandedPearl(isExpanded ? null : pl.pearl_id)} style={{ cursor: 'pointer' }}>
+                        <div className="pearl-card">
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{pl.source && `${pl.source} · `}{pl.department} · {formatDate(pl.created_at)}</div>
+                            <span style={{ fontSize: 12, color: 'var(--text-tertiary)', marginLeft: 8 }}>{isExpanded ? '▲' : '▼'}</span>
+                          </div>
+                          <div style={{ fontWeight: 500, fontSize: 14, color: 'var(--text)', marginTop: 4 }}>{displayTitle}</div>
+                          {isExpanded && (
+                            <div style={{ marginTop: 10, fontSize: 13, color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', lineHeight: 1.6, borderTop: '1px solid var(--border)', paddingTop: 10 }}>
+                              {pl.content}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
               </div>}
+          </div>
         </div>
       )}
 
@@ -370,18 +398,24 @@ export default function Home() {
             <div className="modal-handle" />
             <div className="modal-title">💡 Capture a Pearl</div>
             <div className="form-group">
-              <label className="form-label">Source</label>
-              <input value={plForm.source} onChange={e => setPlForm({ ...plForm, source: e.target.value })} placeholder="e.g. 主任查房" />
+              <label className="form-label">Title *</label>
+              <input value={plForm.title} onChange={e => setPlForm({ ...plForm, title: e.target.value })} placeholder="e.g. Appendicitis workup" />
+            </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">Source</label>
+                <input value={plForm.source} onChange={e => setPlForm({ ...plForm, source: e.target.value })} placeholder="e.g. 主任查房" />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Department</label>
+                <select value={plForm.department} onChange={e => setPlForm({ ...plForm, department: e.target.value })}>
+                  {PRESET_DEPARTMENTS.map(d => <option key={d}>{d}</option>)}
+                </select>
+              </div>
             </div>
             <div className="form-group">
-              <label className="form-label">Department</label>
-              <select value={plForm.department} onChange={e => setPlForm({ ...plForm, department: e.target.value })}>
-                {PRESET_DEPARTMENTS.map(d => <option key={d}>{d}</option>)}
-              </select>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Pearl *</label>
-              <textarea value={plForm.content} onChange={e => setPlForm({ ...plForm, content: e.target.value })} placeholder="Write it down before you forget..." rows={5} />
+              <label className="form-label">Content *</label>
+              <textarea value={plForm.content} onChange={e => setPlForm({ ...plForm, content: e.target.value })} placeholder="Paste or write content here... formatting is preserved" rows={8} style={{ fontFamily: 'monospace', fontSize: 13 }} />
             </div>
             <button className="btn-primary" onClick={handleAddPearl} disabled={saving}>{saving ? 'Saving...' : 'Save Pearl'}</button>
             <button className="btn-secondary" onClick={() => setModal(null)}>Cancel</button>
