@@ -403,39 +403,45 @@ export default function Home() {
                     const isExpanded = expandedPearl === pl.pearl_id;
                     const displayTitle = pl.title || pl.content?.split('\n')[0].replace(/^#+\s*/, '').slice(0, 60);
                     return (
-                      <div key={pl.pearl_id} className="card" style={{ padding: 0, overflow: 'hidden', outline: selected.has(pl.pearl_id) ? '2px solid var(--blue)' : 'none' }}>
-                        <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                          {selectMode && (
-                            <input type="checkbox" checked={selected.has(pl.pearl_id)}
-                              onChange={() => toggleSelect(pl.pearl_id)}
-                              style={{ width: 16, height: 16, flexShrink: 0, cursor: 'pointer' }} />
-                          )}
-                          <div style={{ flex: 1, minWidth: 0, cursor: 'pointer' }}
-                            onClick={() => selectMode ? toggleSelect(pl.pearl_id) : setEditingPearl({...pl})}>
-                            <div style={{ fontWeight: 500, fontSize: 14, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {pl.starred && <span style={{ color: '#d97706', marginRight: 4 }}>⭐</span>}
-                              {displayTitle}
+                      <div key={pl.pearl_id}>
+                        <div className="card" style={{
+                          padding: 0, overflow: 'hidden',
+                          borderLeft: pl.starred ? '3px solid #d97706' : '3px solid transparent',
+                          outline: selected.has(pl.pearl_id) ? '2px solid var(--blue)' : 'none',
+                        }}>
+                          <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                            {selectMode && (
+                              <input type="checkbox" checked={selected.has(pl.pearl_id)}
+                                onChange={() => toggleSelect(pl.pearl_id)}
+                                style={{ width: 16, height: 16, flexShrink: 0, cursor: 'pointer' }} />
+                            )}
+                            <div style={{ flex: 1, minWidth: 0, cursor: 'pointer' }}
+                              onClick={() => selectMode ? toggleSelect(pl.pearl_id) : setEditingPearl({...pl})}>
+                              <div style={{ fontWeight: 500, fontSize: 14, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {displayTitle}
+                              </div>
+                              <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>
+                                {pl.department}{pl.source ? ` · ${pl.source}` : ''} · {formatDate(pl.created_at)}
+                              </div>
                             </div>
-                            <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>
-                              {pl.department}{pl.source ? ` · ${pl.source}` : ''} · {formatDate(pl.created_at)}
-                            </div>
+                            <button onClick={e => { e.stopPropagation(); setExpandedPearl(isExpanded ? null : pl.pearl_id); }}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 12, padding: '4px 6px', flexShrink: 0, transform: isExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }}>▶</button>
                           </div>
-                          {!selectMode && (
-                            <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-                              <button onClick={e => { e.stopPropagation(); handleStarPearl(pl.pearl_id, pl.starred); }}
-                                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 15, padding: '2px 4px', opacity: pl.starred ? 1 : 0.4 }}>⭐</button>
-                              <button onClick={e => { e.stopPropagation(); setExpandedPearl(isExpanded ? null : pl.pearl_id); }}
-                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 12, padding: '4px 6px', transform: isExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }}>▶</button>
-                              <button onClick={e => { e.stopPropagation(); handleDeletePearl(pl.pearl_id); }}
-                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--red)', fontSize: 15, padding: '2px 4px' }}>🗑</button>
+                          {isExpanded && !selectMode && (
+                            <div style={{ padding: '0 14px 14px', borderTop: '1px solid var(--border)' }}>
+                              <div className="markdown-body" style={{ paddingTop: 12 }}>
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{pl.content || ''}</ReactMarkdown>
+                              </div>
                             </div>
                           )}
                         </div>
-                        {isExpanded && !selectMode && (
-                          <div style={{ padding: '0 14px 14px', borderTop: '1px solid var(--border)' }}>
-                            <div className="markdown-body" style={{ paddingTop: 12 }}>
-                              <ReactMarkdown remarkPlugins={[remarkGfm]}>{pl.content || ''}</ReactMarkdown>
-                            </div>
+                        {!selectMode && (
+                          <div className="card-actions" style={{ padding: '6px 2px 2px' }}>
+                            <button className="card-action" style={{ color: pl.starred ? '#d97706' : 'var(--text-secondary)', borderColor: pl.starred ? '#d97706' : 'var(--border)', fontWeight: pl.starred ? 600 : 400 }}
+                              onClick={() => handleStarPearl(pl.pearl_id, pl.starred)}>
+                              {pl.starred ? '★ Marked' : '☆ Mark'}
+                            </button>
+                            <button className="card-action danger" onClick={() => handleDeletePearl(pl.pearl_id)}>Delete</button>
                           </div>
                         )}
                       </div>
