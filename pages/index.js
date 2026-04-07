@@ -413,11 +413,10 @@ export default function Home() {
                           outline: selected.has(pl.pearl_id) ? '2px solid var(--blue)' : 'none',
                           userSelect: 'none',
                         }}
-                          onMouseDown={() => { pressTimer = setTimeout(() => setActiveMenu(showMenu ? null : pl.pearl_id), 500); }}
-                          onMouseUp={() => clearTimeout(pressTimer)}
-                          onMouseLeave={() => clearTimeout(pressTimer)}
+                          onContextMenu={e => { e.preventDefault(); setActiveMenu(showMenu ? null : pl.pearl_id); }}
                           onTouchStart={() => { pressTimer = setTimeout(() => setActiveMenu(showMenu ? null : pl.pearl_id), 500); }}
                           onTouchEnd={() => clearTimeout(pressTimer)}
+                          onTouchMove={() => clearTimeout(pressTimer)}
                         >
                           <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
                             {selectMode && (
