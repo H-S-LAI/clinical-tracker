@@ -1,3 +1,5 @@
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
@@ -26,7 +28,9 @@ export default function Home() {
   const [deptFilter, setDeptFilter] = useState('');
   const [hospitalFilter, setHospitalFilter] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+  const [pearlStatusFilter, setPearlStatusFilter] = useState('all');
   const [pearlDeptFilter, setPearlDeptFilter] = useState('');
+  const [showPearlFilters, setShowPearlFilters] = useState(false);
   const [expandedPearl, setExpandedPearl] = useState(null);
   const [editingPearl, setEditingPearl] = useState(null);
   const [imageUploading, setImageUploading] = useState(false);
@@ -147,6 +151,32 @@ export default function Home() {
     setImageUploading(false);
   }
 
+  async function handlePasteImage(e, currentContent, onUpdate) {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (let item of items) {
+      if (item.type.startsWith('image/')) {
+        e.preventDefault();
+        setImageUploading(true);
+        const file = item.getAsFile();
+        const url = await uploadPearlImage(file);
+        if (url) onUpdate(currentContent + `\n![image](${url})\n`);
+        setImageUploading(false);
+        return;
+      }
+    }
+  }
+
+  async function handleDropImage(e, currentContent, onUpdate) {
+    e.preventDefault();
+    const file = e.dataTransfer?.files?.[0];
+    if (!file || !file.type.startsWith('image/')) return;
+    setImageUploading(true);
+    const url = await uploadPearlImage(file);
+    if (url) onUpdate(currentContent + `\n![image](${url})\n`);
+    setImageUploading(false);
+  }
+
   async function handleStatus(patient_id, status) {
     await updatePatientStatus(patient_id, status);
     await loadAll();
@@ -258,60 +288,93 @@ export default function Home() {
 
       {tab === 'pearls' && (
         <div className="section">
-          <div style={{ padding: '10px 16px 0', display: 'flex', gap: 6, overflowX: 'auto' }}>
-            {['All', ...PRESET_DEPARTMENTS].map(d => (
-              <button key={d} onClick={() => setPearlDeptFilter(d === 'All' ? '' : d)} style={{
-                padding: '5px 12px', borderRadius: 20, fontSize: 12, fontWeight: 500,
-                border: '1px solid var(--border)',
-                background: (d === 'All' && !pearlDeptFilter) || pearlDeptFilter === d ? 'var(--text)' : 'var(--surface)',
-                color: (d === 'All' && !pearlDeptFilter) || pearlDeptFilter === d ? 'white' : 'var(--text-secondary)',
-                cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
-              }}>{d}</button>
-            ))}
+          {/* Filter bar */}
+          <div style={{ padding: '10px 16px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 6, flex: 1 }}>
+              {['all', 'starred'].map(f => (
+                <button key={f} onClick={() => setPearlStatusFilter(f)} style={{
+                  padding: '5px 12px', borderRadius: 20, fontSize: 12, fontWeight: 500,
+                  border: '1px solid var(--border)',
+                  background: pearlStatusFilter === f ? 'var(--text)' : 'var(--surface)',
+                  color: pearlStatusFilter === f ? 'white' : 'var(--text-secondary)',
+                  cursor: 'pointer', whiteSpace: 'nowrap',
+                }}>
+                  {f === 'all' ? 'All' : '⭐ Starred'}
+                </button>
+              ))}
+            </div>
+            <button onClick={() => setShowPearlFilters(!showPearlFilters)} style={{
+              padding: '5px 10px', borderRadius: 20, fontSize: 12,
+              border: '1px solid var(--border)',
+              background: pearlDeptFilter ? 'var(--blue-bg)' : 'var(--surface)',
+              color: pearlDeptFilter ? 'var(--blue)' : 'var(--text-secondary)',
+              cursor: 'pointer',
+            }}>⚙{pearlDeptFilter ? ' •' : ''}</button>
           </div>
+
+          {showPearlFilters && (
+            <div style={{ padding: '8px 16px 0', display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+              <select value={pearlDeptFilter} onChange={e => setPearlDeptFilter(e.target.value)}
+                style={{ fontSize: 12, padding: '4px 8px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)' }}>
+                <option value="">All Departments</option>
+                {PRESET_DEPARTMENTS.map(d => <option key={d}>{d}</option>)}
+              </select>
+              {pearlDeptFilter && (
+                <button onClick={() => setPearlDeptFilter('')} style={{ fontSize: 12, color: 'var(--red)', background: 'none', border: 'none', cursor: 'pointer' }}>Clear</button>
+              )}
+            </div>
+          )}
+
           <div style={{ padding: '10px 16px 80px' }}>
-          {loading ? <div className="loading">Loading...</div>
-            : pearls.length === 0 ? <div className="empty">Pearl collection is empty</div>
+            {loading ? <div className="loading">Loading...</div>
+              : pearls.length === 0 ? <div className="empty">Pearl collection is empty</div>
               : <div className="list-gap">
                 {pearls
-                  .filter(pl => !pearlDeptFilter || pl.department === pearlDeptFilter)
+                  .filter(pl => {
+                    if (pearlStatusFilter === 'starred' && !pl.starred) return false;
+                    if (pearlDeptFilter && pl.department !== pearlDeptFilter) return false;
+                    return true;
+                  })
                   .map(pl => {
                     const isExpanded = expandedPearl === pl.pearl_id;
-                    const displayTitle = pl.title || pl.content.split('\n')[0].slice(0, 60);
+                    const displayTitle = pl.title || pl.content?.split('\n')[0].replace(/^#+\s*/, '').slice(0, 60);
                     return (
-                      <div key={pl.pearl_id} className="card">
-                        <div className="pearl-card" onClick={() => setExpandedPearl(isExpanded ? null : pl.pearl_id)} style={{ cursor: 'pointer' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                            <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
+                      <div key={pl.pearl_id} className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                        {/* Header row - click to edit */}
+                        <div onClick={() => setEditingPearl({...pl})} style={{
+                          padding: '12px 14px', cursor: 'pointer', display: 'flex',
+                          alignItems: 'center', justifyContent: 'space-between', gap: 8,
+                        }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontWeight: 500, fontSize: 14, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {pl.starred && <span style={{ color: '#d97706', marginRight: 4 }}>⭐</span>}
-                              {pl.source && `${pl.source} · `}{pl.department} · {formatDate(pl.created_at)}
+                              {displayTitle}
                             </div>
-                            <span style={{ fontSize: 11, color: 'var(--text-tertiary)', marginLeft: 8 }}>{isExpanded ? '▲' : '▼'}</span>
+                            <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>
+                              {pl.department}{pl.source ? ` · ${pl.source}` : ''} · {formatDate(pl.created_at)}
+                            </div>
                           </div>
-                          <div style={{ fontWeight: 500, fontSize: 14, color: 'var(--text)', marginTop: 4 }}>{displayTitle}</div>
-                          {isExpanded && (
-                            <>
-                              <div style={{ marginTop: 10, fontSize: 13, color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', lineHeight: 1.6, borderTop: '1px solid var(--border)', paddingTop: 10 }}>
-                                {pl.content}
-                              </div>
-                              {pl.image_url && (
-                                <img src={pl.image_url} alt="pearl" style={{ marginTop: 10, maxWidth: '100%', borderRadius: 8 }} />
-                              )}
-                            </>
-                          )}
-                        </div>
-                        <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
-                          <button className="card-action" onClick={() => handleStarPearl(pl.pearl_id, pl.starred)}>
-                            {pl.starred ? '✕ Unstar' : '⭐'}
+                          <button
+                            onClick={e => { e.stopPropagation(); setExpandedPearl(isExpanded ? null : pl.pearl_id); }}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 12, padding: '4px 6px', flexShrink: 0, transform: isExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }}>
+                            ▶
                           </button>
-                          <button className="card-action" onClick={() => setEditingPearl({...pl})}>Edit</button>
-                          <label className="card-action" style={{ cursor: 'pointer' }}>
-                            {imageUploading ? 'Uploading...' : '🖼 Image'}
-                            <input type="file" accept="image/*" style={{ display: 'none' }}
-                              onChange={e => e.target.files[0] && handlePearlImageUpload(pl.pearl_id, e.target.files[0])} />
-                          </label>
-                          <button className="card-action danger" onClick={() => handleDeletePearl(pl.pearl_id)}>Delete</button>
                         </div>
+
+                        {/* Expanded content */}
+                        {isExpanded && (
+                          <div style={{ padding: '0 14px 12px', borderTop: '1px solid var(--border)' }}>
+                            <div className="markdown-body" style={{ paddingTop: 12 }}>
+                              <ReactMarkdown remarkPlugins={[remarkGfm]}>{pl.content || ''}</ReactMarkdown>
+                            </div>
+                            <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
+                              <button className="card-action" onClick={() => handleStarPearl(pl.pearl_id, pl.starred)}>
+                                {pl.starred ? '✕ Unstar' : '⭐ Star'}
+                              </button>
+                              <button className="card-action danger" onClick={() => handleDeletePearl(pl.pearl_id)}>Delete</button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -320,165 +383,7 @@ export default function Home() {
         </div>
       )}
 
-      <button className="fab" onClick={() => {
-        if (tab === 'ward') setModal('patient');
-        else if (tab === 'opd') setModal('opd');
-        else setModal('pearl');
-      }}>+</button>
-
-      {modal === 'patient' && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setModal(null)}>
-          <div className="modal">
-            <div className="modal-handle" />
-            <div className="modal-title">New Patient</div>
-            <div className="form-group">
-              <label className="form-label">Name *</label>
-              <input value={pForm.name} onChange={e => setPForm({ ...pForm, name: e.target.value })} placeholder="Patient name" />
-            </div>
-            <div className="form-row">
-              <div className="form-group">
-                <label className="form-label">Chart No.</label>
-                <input value={pForm.chart_number} onChange={e => setPForm({ ...pForm, chart_number: e.target.value })} placeholder="123456" />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Bed</label>
-                <input value={pForm.bed} onChange={e => setPForm({ ...pForm, bed: e.target.value })} placeholder="7B-12" />
-              </div>
-            </div>
-            <div className="form-row">
-              <div className="form-group">
-                <label className="form-label">DOB</label>
-                <input type="date" value={pForm.birth_date} onChange={e => setPForm({ ...pForm, birth_date: e.target.value })} />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Gender</label>
-                <select value={pForm.gender} onChange={e => setPForm({ ...pForm, gender: e.target.value })}>
-                  {GENDERS.map(g => <option key={g}>{g}</option>)}
-                </select>
-              </div>
-            </div>
-            <div className="form-row">
-              <div className="form-group">
-                <label className="form-label">Hospital</label>
-                <select value={pForm.hospital} onChange={e => setPForm({ ...pForm, hospital: e.target.value })}>
-                  {PRESET_HOSPITALS.map(h => <option key={h}>{h}</option>)}
-                </select>
-                {pForm.hospital === 'Others' && (
-                  <input style={{ marginTop: 6 }} value={customHospital} onChange={e => setCustomHospital(e.target.value)} placeholder="Hospital name" />
-                )}
-              </div>
-              <div className="form-group">
-                <label className="form-label">Department</label>
-                <select value={pForm.department} onChange={e => setPForm({ ...pForm, department: e.target.value })}>
-                  {PRESET_DEPARTMENTS.map(d => <option key={d}>{d}</option>)}
-                  <option value="Others">Others</option>
-                </select>
-                {pForm.department === 'Others' && (
-                  <input style={{ marginTop: 6 }} value={customDept} onChange={e => setCustomDept(e.target.value)} placeholder="Department name" />
-                )}
-              </div>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Chief complaint</label>
-              <input value={pForm.chief_complaint} onChange={e => setPForm({ ...pForm, chief_complaint: e.target.value })} placeholder="e.g. Abdominal pain 3 days" />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Diagnosis *</label>
-              <input value={pForm.diagnosis} onChange={e => setPForm({ ...pForm, diagnosis: e.target.value })} placeholder="Primary diagnosis" />
-            </div>
-            <div className="form-row">
-              <div className="form-group">
-                <label className="form-label">Admission date</label>
-                <input type="date" value={pForm.admission_date} onChange={e => setPForm({ ...pForm, admission_date: e.target.value })} />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Discharge date</label>
-                <input type="date" value={pForm.discharge_date} onChange={e => setPForm({ ...pForm, discharge_date: e.target.value })} />
-              </div>
-            </div>
-            <button className="btn-primary" onClick={handleAddPatient} disabled={saving}>{saving ? 'Saving...' : 'Add Patient'}</button>
-            <button className="btn-secondary" onClick={() => setModal(null)}>Cancel</button>
-          </div>
-        </div>
-      )}
-
-      {modal === 'opd' && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setModal(null)}>
-          <div className="modal">
-            <div className="modal-handle" />
-            <div className="modal-title">OPD Visit</div>
-            <div className="form-row">
-              <div className="form-group">
-                <label className="form-label">Date</label>
-                <input type="date" value={oForm.date} onChange={e => setOForm({ ...oForm, date: e.target.value })} />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Hospital</label>
-                <select value={oForm.hospital} onChange={e => setOForm({ ...oForm, hospital: e.target.value })}>
-                  {PRESET_HOSPITALS.map(h => <option key={h}>{h}</option>)}
-                </select>
-              </div>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Department</label>
-              <select value={oForm.department} onChange={e => setOForm({ ...oForm, department: e.target.value })}>
-                {PRESET_DEPARTMENTS.map(d => <option key={d}>{d}</option>)}
-              </select>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Chief complaint</label>
-              <input value={oForm.chief_complaint} onChange={e => setOForm({ ...oForm, chief_complaint: e.target.value })} placeholder="e.g. Knee pain" />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Diagnosis *</label>
-              <input value={oForm.diagnosis} onChange={e => setOForm({ ...oForm, diagnosis: e.target.value })} placeholder="e.g. Osteoarthritis" />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Impression</label>
-              <textarea value={oForm.impression} onChange={e => setOForm({ ...oForm, impression: e.target.value })} placeholder="What stood out?" rows={3} />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Learning point 💡</label>
-              <textarea value={oForm.learning_point} onChange={e => setOForm({ ...oForm, learning_point: e.target.value })} placeholder="What did you learn?" rows={3} />
-            </div>
-            <button className="btn-primary" onClick={handleAddOPD} disabled={saving}>{saving ? 'Saving...' : 'Save Visit'}</button>
-            <button className="btn-secondary" onClick={() => setModal(null)}>Cancel</button>
-          </div>
-        </div>
-      )}
-
-      {modal === 'pearl' && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setModal(null)}>
-          <div className="modal">
-            <div className="modal-handle" />
-            <div className="modal-title">💡 Capture a Pearl</div>
-            <div className="form-group">
-              <label className="form-label">Title *</label>
-              <input value={plForm.title} onChange={e => setPlForm({ ...plForm, title: e.target.value })} placeholder="e.g. Appendicitis workup" />
-            </div>
-            <div className="form-row">
-              <div className="form-group">
-                <label className="form-label">Source</label>
-                <input value={plForm.source} onChange={e => setPlForm({ ...plForm, source: e.target.value })} placeholder="e.g. 主任查房" />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Department</label>
-                <select value={plForm.department} onChange={e => setPlForm({ ...plForm, department: e.target.value })}>
-                  {PRESET_DEPARTMENTS.map(d => <option key={d}>{d}</option>)}
-                </select>
-              </div>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Content *</label>
-              <textarea value={plForm.content} onChange={e => setPlForm({ ...plForm, content: e.target.value })} placeholder="Paste or write content here... formatting is preserved" rows={8} style={{ fontFamily: 'monospace', fontSize: 13 }} />
-            </div>
-            <button className="btn-primary" onClick={handleAddPearl} disabled={saving}>{saving ? 'Saving...' : 'Save Pearl'}</button>
-            <button className="btn-secondary" onClick={() => setModal(null)}>Cancel</button>
-          </div>
-        </div>
-      )}
-
-      {editingPearl && (
+            {editingPearl && (
         <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setEditingPearl(null)}>
           <div className="modal">
             <div className="modal-handle" />
@@ -500,8 +405,16 @@ export default function Home() {
               </div>
             </div>
             <div className="form-group">
-              <label className="form-label">Content</label>
-              <textarea value={editingPearl.content || ''} onChange={e => setEditingPearl({...editingPearl, content: e.target.value})} rows={8} style={{ fontFamily: 'monospace', fontSize: 13 }} />
+              <label className="form-label">Content {imageUploading && <span style={{color:'var(--text-tertiary)',fontSize:11}}>uploading image...</span>}</label>
+              <textarea
+                value={editingPearl.content || ''}
+                onChange={e => setEditingPearl({...editingPearl, content: e.target.value})}
+                onPaste={e => handlePasteImage(e, editingPearl.content || '', v => setEditingPearl({...editingPearl, content: v}))}
+                onDragOver={e => e.preventDefault()}
+                onDrop={e => handleDropImage(e, editingPearl.content || '', v => setEditingPearl({...editingPearl, content: v}))}
+                rows={10}
+                style={{ fontFamily: 'monospace', fontSize: 13 }}
+                placeholder="Paste markdown or drag images here..." />
             </div>
             <button className="btn-primary" onClick={handleUpdatePearl} disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
             <button className="btn-secondary" onClick={() => setEditingPearl(null)}>Cancel</button>
@@ -543,6 +456,20 @@ export default function Home() {
         .card-action.danger { color: var(--red); border-color: #fecaca; }
         .card-action.amber { color: var(--amber); }
         .card-action.blue { color: var(--blue); }
+        .markdown-body { font-size: 13px; color: var(--text-secondary); line-height: 1.7; }
+        .markdown-body h1, .markdown-body h2, .markdown-body h3 { color: var(--text); font-weight: 600; margin: 12px 0 6px; font-size: 14px; }
+        .markdown-body h1 { font-size: 16px; }
+        .markdown-body strong { color: var(--text); font-weight: 600; }
+        .markdown-body ul, .markdown-body ol { padding-left: 18px; margin: 6px 0; }
+        .markdown-body li { margin: 3px 0; }
+        .markdown-body blockquote { border-left: 3px solid var(--blue); padding-left: 10px; margin: 8px 0; color: var(--text-tertiary); }
+        .markdown-body hr { border: none; border-top: 1px solid var(--border); margin: 12px 0; }
+        .markdown-body img { max-width: 100%; border-radius: 8px; margin: 8px 0; }
+        .markdown-body table { border-collapse: collapse; width: 100%; font-size: 12px; margin: 8px 0; }
+        .markdown-body th { background: var(--surface); font-weight: 600; color: var(--text); padding: 6px 10px; border: 1px solid var(--border); text-align: left; }
+        .markdown-body td { padding: 5px 10px; border: 1px solid var(--border); }
+        .markdown-body tr:nth-child(even) { background: var(--surface); }
+        .markdown-body code { background: var(--surface); padding: 1px 5px; border-radius: 4px; font-size: 12px; }
       `}</style>
     </div>
   );
