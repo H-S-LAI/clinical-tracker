@@ -37,7 +37,7 @@ export default function Home() {
   const [editorMode, setEditorMode] = useState('write');
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState(new Set());
-  const [contextMenu, setContextMenu] = useState(null); // { id, x, y, starred }
+  const [contextMenu, setContextMenu] = useState(null); // { type, id, x, y, data }
 
   const [pForm, setPForm] = useState({
     name: '', chart_number: '', birth_date: '', gender: 'M',
@@ -200,12 +200,12 @@ export default function Home() {
     setImageUploading(false);
   }
 
-  function openMenu(e, pl) {
+  function openMenu(e, type, id, data = {}) {
     e.preventDefault();
     e.stopPropagation();
     const x = e.touches ? e.touches[0].clientX : e.clientX;
     const y = e.touches ? e.touches[0].clientY : e.clientY;
-    setContextMenu({ id: pl.pearl_id, x, y, starred: pl.starred });
+    setContextMenu({ type, id, x, y, data });
   }
 
   function toggleSelect(id) {
@@ -312,6 +312,7 @@ export default function Home() {
                         patient={p}
                         trackingItems={trackingMap[p.patient_id] || []}
                         onStatusChange={handleStatus}
+                        onOpenMenu={openMenu}
                       />
                     ))}
                   </div>
@@ -329,7 +330,12 @@ export default function Home() {
                 {opdVisits.map(v => {
                   const isExp = expandedPearl === v.visit_id;
                   return (
-                    <div key={v.visit_id} className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                    <div key={v.visit_id} className="card" style={{ padding: 0, overflow: 'hidden', userSelect: 'none' }}
+                      onContextMenu={e => openMenu(e, 'opd', v.visit_id, v)}
+                      onTouchStart={e => { let t = setTimeout(() => openMenu(e, 'opd', v.visit_id, v), 500); v._t = t; }}
+                      onTouchEnd={() => clearTimeout(v._t)}
+                      onTouchMove={() => clearTimeout(v._t)}
+                    >
                       <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
                         <div style={{ flex: 1, minWidth: 0 }} onClick={() => setExpandedPearl(isExp ? null : v.visit_id)} >
                           <div style={{ fontWeight: 500, fontSize: 14, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.diagnosis}</div>
@@ -420,8 +426,8 @@ export default function Home() {
                           outline: selected.has(pl.pearl_id) ? '2px solid var(--blue)' : 'none',
                           userSelect: 'none',
                         }}
-                          onContextMenu={e => openMenu(e, pl)}
-                          onTouchStart={e => { pressTimer = setTimeout(() => openMenu(e, pl), 500); }}
+                          onContextMenu={e => openMenu(e, 'pearl', pl.pearl_id, pl)}
+                          onTouchStart={e => { pressTimer = setTimeout(() => openMenu(e, 'pearl', pl.pearl_id, pl), 500); }}
                           onTouchEnd={() => clearTimeout(pressTimer)}
                           onTouchMove={() => clearTimeout(pressTimer)}
                         >
@@ -472,7 +478,7 @@ export default function Home() {
           <div style={{
             position: 'fixed',
             left: Math.min(contextMenu.x, window.innerWidth - 180),
-            top: Math.min(contextMenu.y, window.innerHeight - 130),
+            top: Math.min(contextMenu.y, window.innerHeight - 160),
             zIndex: 999,
             background: 'rgba(255,255,255,0.92)',
             backdropFilter: 'blur(20px)',
@@ -484,21 +490,55 @@ export default function Home() {
             animation: 'ctxIn 0.18s cubic-bezier(0.34,1.56,0.64,1)',
             transformOrigin: 'top left',
           }}>
-            <button onClick={() => { handleStarPearl(contextMenu.id, contextMenu.starred); setContextMenu(null); }}
-              style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '13px 16px', background: 'none', border: 'none', borderBottom: '1px solid rgba(0,0,0,0.06)', cursor: 'pointer', fontSize: 14, color: contextMenu.starred ? '#92400e' : '#1e293b', textAlign: 'left' }}>
-              <span style={{ fontSize: 16 }}>{contextMenu.starred ? '★' : '☆'}</span>
-              {contextMenu.starred ? 'Remove mark' : 'Mark'}
-            </button>
-            <button onClick={() => { setEditingPearl(pearls.find(p => p.pearl_id === contextMenu.id)); setContextMenu(null); }}
-              style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '13px 16px', background: 'none', border: 'none', borderBottom: '1px solid rgba(0,0,0,0.06)', cursor: 'pointer', fontSize: 14, color: '#1e293b', textAlign: 'left' }}>
-              <span style={{ fontSize: 16 }}>✎</span>
-              Edit
-            </button>
-            <button onClick={() => { handleDeletePearl(contextMenu.id); setContextMenu(null); }}
-              style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '13px 16px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: '#dc2626', textAlign: 'left' }}>
-              <span style={{ fontSize: 16 }}>⌫</span>
-              Delete
-            </button>
+            {contextMenu.type === 'pearl' && <>
+              <button onClick={() => { handleStarPearl(contextMenu.id, contextMenu.data.starred); setContextMenu(null); }}
+                style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '13px 16px', background: 'none', border: 'none', borderBottom: '1px solid rgba(0,0,0,0.06)', cursor: 'pointer', fontSize: 14, color: contextMenu.data.starred ? '#92400e' : '#1e293b', textAlign: 'left' }}>
+                <span style={{ fontSize: 16 }}>{contextMenu.data.starred ? '★' : '☆'}</span>
+                {contextMenu.data.starred ? 'Remove mark' : 'Mark'}
+              </button>
+              <button onClick={() => { setEditingPearl(pearls.find(p => p.pearl_id === contextMenu.id)); setContextMenu(null); }}
+                style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '13px 16px', background: 'none', border: 'none', borderBottom: '1px solid rgba(0,0,0,0.06)', cursor: 'pointer', fontSize: 14, color: '#1e293b', textAlign: 'left' }}>
+                <span style={{ fontSize: 16 }}>✎</span>
+                Edit
+              </button>
+              <button onClick={() => { handleDeletePearl(contextMenu.id); setContextMenu(null); }}
+                style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '13px 16px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: '#dc2626', textAlign: 'left' }}>
+                <span style={{ fontSize: 16 }}>⌫</span>
+                Delete
+              </button>
+            </>}
+            {contextMenu.type === 'ward' && <>
+              {contextMenu.data.status !== 'starred'
+                ? <button onClick={() => { handleStatus(contextMenu.id, 'starred'); setContextMenu(null); }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '13px 16px', background: 'none', border: 'none', borderBottom: '1px solid rgba(0,0,0,0.06)', cursor: 'pointer', fontSize: 14, color: '#1e293b', textAlign: 'left' }}>
+                    <span>★</span> Star
+                  </button>
+                : <button onClick={() => { handleStatus(contextMenu.id, 'active'); setContextMenu(null); }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '13px 16px', background: 'none', border: 'none', borderBottom: '1px solid rgba(0,0,0,0.06)', cursor: 'pointer', fontSize: 14, color: '#92400e', textAlign: 'left' }}>
+                    <span>★</span> Unstar
+                  </button>
+              }
+              {contextMenu.data.status !== 'archived'
+                ? <button onClick={() => { handleStatus(contextMenu.id, 'archived'); setContextMenu(null); }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '13px 16px', background: 'none', border: 'none', borderBottom: '1px solid rgba(0,0,0,0.06)', cursor: 'pointer', fontSize: 14, color: '#1e293b', textAlign: 'left' }}>
+                    <span>◫</span> Archive
+                  </button>
+                : <button onClick={() => { handleStatus(contextMenu.id, 'active'); setContextMenu(null); }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '13px 16px', background: 'none', border: 'none', borderBottom: '1px solid rgba(0,0,0,0.06)', cursor: 'pointer', fontSize: 14, color: '#2563eb', textAlign: 'left' }}>
+                    <span>↩</span> Restore
+                  </button>
+              }
+              <button onClick={() => { handleStatus(contextMenu.id, 'deleted'); setContextMenu(null); }}
+                style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '13px 16px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: '#dc2626', textAlign: 'left' }}>
+                <span>⌫</span> Delete
+              </button>
+            </>}
+            {contextMenu.type === 'opd' && <>
+              <button onClick={() => { setContextMenu(null); }}
+                style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '13px 16px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: '#dc2626', textAlign: 'left' }}>
+                <span>⌫</span> Delete
+              </button>
+            </>}
           </div>
         </>
       )}
@@ -810,50 +850,47 @@ export default function Home() {
   );
 }
 
-function PatientCard({ patient: p, trackingItems, onStatusChange }) {
+function PatientCard({ patient: p, trackingItems, onStatusChange, onOpenMenu }) {
   const age = calcAge(p.birth_date);
   const hd = calcHD(p.admission_date);
   const cls = `pcard${p.status === 'starred' ? ' starred' : p.status === 'archived' ? ' archived' : ''}`;
   const showItems = trackingItems.slice(0, 2);
+  let pressTimer = null;
 
   return (
     <div>
-      <Link href={`/patient/${p.patient_id}`} style={{ textDecoration: 'none', display: 'block' }}>
-        <div className={cls}>
-          <div>
-            <div className="pcard-top">
-              <div>
-                <div className="pcard-name">{p.name}</div>
-                <div className="pcard-bed">{age !== '?' ? `${age}y ` : ''}{p.gender} · {p.bed || '—'}</div>
-              </div>
-              {hd !== null && (
-                <div className="pcard-hd">HD{hd}</div>
-              )}
-            </div>
-            {showItems.length > 0 && (
-              <div className="pcard-follow">
-                {showItems.map(item => (
-                  <div key={item.item_id} className="pcard-follow-item">⚑ {item.content}</div>
-                ))}
-                {trackingItems.length > 2 && (
-                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', paddingLeft: 2 }}>+{trackingItems.length - 2} more</div>
+      <div style={{ textDecoration: 'none', display: 'block', userSelect: 'none' }}
+        onContextMenu={e => onOpenMenu(e, 'ward', p.patient_id, p)}
+        onTouchStart={e => { pressTimer = setTimeout(() => onOpenMenu(e, 'ward', p.patient_id, p), 500); }}
+        onTouchEnd={() => clearTimeout(pressTimer)}
+        onTouchMove={() => clearTimeout(pressTimer)}
+      >
+        <Link href={`/patient/${p.patient_id}`} style={{ textDecoration: 'none', display: 'block' }}>
+          <div className={cls}>
+            <div>
+              <div className="pcard-top">
+                <div>
+                  <div className="pcard-name">{p.name}</div>
+                  <div className="pcard-bed">{age !== '?' ? `${age}y ` : ''}{p.gender} · {p.bed || '—'}</div>
+                </div>
+                {hd !== null && (
+                  <div className="pcard-hd">HD{hd}</div>
                 )}
               </div>
-            )}
+              {showItems.length > 0 && (
+                <div className="pcard-follow">
+                  {showItems.map(item => (
+                    <div key={item.item_id} className="pcard-follow-item">⚑ {item.content}</div>
+                  ))}
+                  {trackingItems.length > 2 && (
+                    <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', paddingLeft: 2 }}>+{trackingItems.length - 2} more</div>
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="pcard-dx"># {p.diagnosis}</div>
           </div>
-          <div className="pcard-dx"># {p.diagnosis}</div>
-        </div>
-      </Link>
-      <div className="card-actions">
-        {p.status !== 'starred'
-          ? <button className="card-action" onClick={() => onStatusChange(p.patient_id, 'starred')}>⭐</button>
-          : <button className="card-action amber" onClick={() => onStatusChange(p.patient_id, 'active')}>✕ Unstar</button>
-        }
-        {p.status === 'archived'
-          ? <button className="card-action blue" onClick={() => onStatusChange(p.patient_id, 'active')}>Restore</button>
-          : <button className="card-action" onClick={() => onStatusChange(p.patient_id, 'archived')}>Archive</button>
-        }
-        <button className="card-action danger" onClick={() => onStatusChange(p.patient_id, 'deleted')}>Del</button>
+        </Link>
       </div>
     </div>
   );
