@@ -35,6 +35,8 @@ export default function Home() {
   const [editingPearl, setEditingPearl] = useState(null);
   const [imageUploading, setImageUploading] = useState(false);
   const [editorMode, setEditorMode] = useState('write');
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState(new Set());
 
   const [pForm, setPForm] = useState({
     name: '', chart_number: '', birth_date: '', gender: 'M',
@@ -197,6 +199,29 @@ export default function Home() {
     setImageUploading(false);
   }
 
+  function toggleSelect(id) {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  async function bulkDeletePearls() {
+    if (!selected.size) return;
+    if (!confirm(`Delete ${selected.size} pearl(s)?`)) return;
+    await Promise.all([...selected].map(id => deletePearl(id)));
+    setSelected(new Set()); setSelectMode(false);
+    await loadAll();
+  }
+
+  async function bulkStarPearls() {
+    if (!selected.size) return;
+    await Promise.all([...selected].map(id => updatePearl(id, { starred: true })));
+    setSelected(new Set()); setSelectMode(false);
+    await loadAll();
+  }
+
   async function handleStatus(patient_id, status) {
     await updatePatientStatus(patient_id, status);
     await loadAll();
@@ -288,47 +313,66 @@ export default function Home() {
 
       {tab === 'opd' && (
         <div className="section">
+          <div style={{ padding: '10px 16px 80px' }}>
           {loading ? <div className="loading">Loading...</div>
-            : opdVisits.length === 0 ? <div className="empty">No OPD records yet</div>
+            : opdVisits.length === 0 ? <div className="empty">No OPD records yet · tap + to add</div>
               : <div className="list-gap">
-                {opdVisits.map(v => (
-                  <div key={v.visit_id} className="card">
-                    <div className="opd-card">
-                      <div className="opd-date">{formatDate(v.date)} · {v.hospital} · {v.department}</div>
-                      <div className="opd-dx">{v.diagnosis}</div>
-                      {v.chief_complaint && <div className="opd-detail">CC: {v.chief_complaint}</div>}
-                      {v.impression && <div className="opd-detail">Impression: {v.impression}</div>}
-                      {v.learning_point && <div className="opd-learning">💡 {v.learning_point}</div>}
+                {opdVisits.map(v => {
+                  const isExp = expandedPearl === v.visit_id;
+                  return (
+                    <div key={v.visit_id} className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                      <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{ flex: 1, minWidth: 0 }} onClick={() => setExpandedPearl(isExp ? null : v.visit_id)} >
+                          <div style={{ fontWeight: 500, fontSize: 14, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.diagnosis}</div>
+                          <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>{v.department} · {v.hospital} · {formatDate(v.date)}</div>
+                        </div>
+                        <button onClick={() => setExpandedPearl(isExp ? null : v.visit_id)}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 12, padding: '4px 6px', flexShrink: 0, transform: isExp ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }}>▶</button>
+                      </div>
+                      {isExp && (
+                        <div style={{ padding: '0 14px 12px', borderTop: '1px solid var(--border)' }}>
+                          {v.chief_complaint && <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 10 }}>CC: {v.chief_complaint}</div>}
+                          {v.impression && <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 6 }}>Impression: {v.impression}</div>}
+                          {v.learning_point && <div style={{ fontSize: 13, color: 'var(--blue)', marginTop: 6 }}>💡 {v.learning_point}</div>}
+                        </div>
+                      )}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>}
+          </div>
         </div>
       )}
 
       {tab === 'pearls' && (
         <div className="section">
-          {/* Filter bar */}
           <div style={{ padding: '10px 16px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ display: 'flex', gap: 6, flex: 1 }}>
+            <div style={{ display: 'flex', gap: 6, flex: 1, overflowX: 'auto' }}>
               {['all', 'starred'].map(f => (
-                <button key={f} onClick={() => setPearlStatusFilter(f)} style={{
+                <button key={f} onClick={() => { setPearlStatusFilter(f); setSelectMode(false); setSelected(new Set()); }} style={{
                   padding: '5px 12px', borderRadius: 20, fontSize: 12, fontWeight: 500,
                   border: '1px solid var(--border)',
                   background: pearlStatusFilter === f ? 'var(--text)' : 'var(--surface)',
                   color: pearlStatusFilter === f ? 'white' : 'var(--text-secondary)',
-                  cursor: 'pointer', whiteSpace: 'nowrap',
+                  cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
                 }}>
                   {f === 'all' ? 'All' : '⭐ Starred'}
                 </button>
               ))}
             </div>
+            <button onClick={() => { setSelectMode(!selectMode); setSelected(new Set()); }} style={{
+              padding: '5px 10px', borderRadius: 20, fontSize: 12,
+              border: '1px solid var(--border)',
+              background: selectMode ? 'var(--text)' : 'var(--surface)',
+              color: selectMode ? 'white' : 'var(--text-secondary)',
+              cursor: 'pointer', flexShrink: 0,
+            }}>Select</button>
             <button onClick={() => setShowPearlFilters(!showPearlFilters)} style={{
               padding: '5px 10px', borderRadius: 20, fontSize: 12,
               border: '1px solid var(--border)',
               background: pearlDeptFilter ? 'var(--blue-bg)' : 'var(--surface)',
               color: pearlDeptFilter ? 'var(--blue)' : 'var(--text-secondary)',
-              cursor: 'pointer',
+              cursor: 'pointer', flexShrink: 0,
             }}>⚙{pearlDeptFilter ? ' •' : ''}</button>
           </div>
 
@@ -359,13 +403,15 @@ export default function Home() {
                     const isExpanded = expandedPearl === pl.pearl_id;
                     const displayTitle = pl.title || pl.content?.split('\n')[0].replace(/^#+\s*/, '').slice(0, 60);
                     return (
-                      <div key={pl.pearl_id} className="card" style={{ padding: 0, overflow: 'hidden' }}>
-                        {/* Header row - click to edit */}
-                        <div onClick={() => setEditingPearl({...pl})} style={{
-                          padding: '12px 14px', cursor: 'pointer', display: 'flex',
-                          alignItems: 'center', justifyContent: 'space-between', gap: 8,
-                        }}>
-                          <div style={{ flex: 1, minWidth: 0 }}>
+                      <div key={pl.pearl_id} className="card" style={{ padding: 0, overflow: 'hidden', outline: selected.has(pl.pearl_id) ? '2px solid var(--blue)' : 'none' }}>
+                        <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                          {selectMode && (
+                            <input type="checkbox" checked={selected.has(pl.pearl_id)}
+                              onChange={() => toggleSelect(pl.pearl_id)}
+                              style={{ width: 16, height: 16, flexShrink: 0, cursor: 'pointer' }} />
+                          )}
+                          <div style={{ flex: 1, minWidth: 0, cursor: 'pointer' }}
+                            onClick={() => selectMode ? toggleSelect(pl.pearl_id) : setEditingPearl({...pl})}>
                             <div style={{ fontWeight: 500, fontSize: 14, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {pl.starred && <span style={{ color: '#d97706', marginRight: 4 }}>⭐</span>}
                               {displayTitle}
@@ -374,24 +420,21 @@ export default function Home() {
                               {pl.department}{pl.source ? ` · ${pl.source}` : ''} · {formatDate(pl.created_at)}
                             </div>
                           </div>
-                          <button
-                            onClick={e => { e.stopPropagation(); setExpandedPearl(isExpanded ? null : pl.pearl_id); }}
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 12, padding: '4px 6px', flexShrink: 0, transform: isExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }}>
-                            ▶
-                          </button>
+                          {!selectMode && (
+                            <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                              <button onClick={e => { e.stopPropagation(); handleStarPearl(pl.pearl_id, pl.starred); }}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 15, padding: '2px 4px', opacity: pl.starred ? 1 : 0.4 }}>⭐</button>
+                              <button onClick={e => { e.stopPropagation(); setExpandedPearl(isExpanded ? null : pl.pearl_id); }}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 12, padding: '4px 6px', transform: isExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }}>▶</button>
+                              <button onClick={e => { e.stopPropagation(); handleDeletePearl(pl.pearl_id); }}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--red)', fontSize: 15, padding: '2px 4px' }}>🗑</button>
+                            </div>
+                          )}
                         </div>
-
-                        {/* Expanded content */}
-                        {isExpanded && (
-                          <div style={{ padding: '0 14px 12px', borderTop: '1px solid var(--border)' }}>
+                        {isExpanded && !selectMode && (
+                          <div style={{ padding: '0 14px 14px', borderTop: '1px solid var(--border)' }}>
                             <div className="markdown-body" style={{ paddingTop: 12 }}>
                               <ReactMarkdown remarkPlugins={[remarkGfm]}>{pl.content || ''}</ReactMarkdown>
-                            </div>
-                            <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
-                              <button className="card-action" onClick={() => handleStarPearl(pl.pearl_id, pl.starred)}>
-                                {pl.starred ? '✕ Unstar' : '⭐ Star'}
-                              </button>
-                              <button className="card-action danger" onClick={() => handleDeletePearl(pl.pearl_id)}>Delete</button>
                             </div>
                           </div>
                         )}
@@ -400,6 +443,13 @@ export default function Home() {
                   })}
               </div>}
           </div>
+          {selectMode && selected.size > 0 && (
+            <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: 'var(--surface)', borderTop: '1px solid var(--border)', padding: '12px 16px', display: 'flex', gap: 8, zIndex: 100 }}>
+              <span style={{ flex: 1, fontSize: 13, color: 'var(--text-secondary)', alignSelf: 'center' }}>{selected.size} selected</span>
+              <button onClick={bulkStarPearls} style={{ padding: '8px 16px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', fontSize: 13 }}>⭐ Star all</button>
+              <button onClick={bulkDeletePearls} style={{ padding: '8px 16px', borderRadius: 10, border: 'none', background: 'var(--red)', color: 'white', cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>Delete</button>
+            </div>
+          )}
         </div>
       )}
 
@@ -754,4 +804,4 @@ function PatientCard({ patient: p, trackingItems, onStatusChange }) {
     </div>
   );
 }
-// Tue Apr  7 23:36:38 CST 2026
+
